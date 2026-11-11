@@ -1,6 +1,6 @@
 {
   "name": "gladys-ems-esp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Gladys Assistant external integration for Bosch, Buderus, Junkers, Nefit and Worcester boilers and heat pumps through a local EMS-ESP gateway (REST API): temperatures, heating circuits, hot water, optional bounded commands. Unofficial, not affiliated with EMS-ESP, Bosch or Buderus.",
   "type": "module",

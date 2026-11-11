@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-11
+
 ### Added
 
 - First version: Bosch-group boilers and heat pumps (Bosch, Buderus, Junkers,
@@ -28,4 +30,5 @@ the notes of the version's GitHub Release.
   429/5xx pause them; the EMS bus disconnected publishes nothing; °F
   converted. "Test the connection" button. English and French.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-ems-esp/commits/main
+[Unreleased]: https://github.com/LM1LC3N7/gladys-ems-esp/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-ems-esp/releases/tag/v0.1.1
