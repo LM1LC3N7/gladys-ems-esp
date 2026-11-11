@@ -250,9 +250,16 @@ export class EmsApp {
     const now = this.now();
     // Stops clicked while /data was being read are kept over those of the file.
     const live = Object.values(this.memory.stops).filter((s) => s.live);
+    // A refusal of the key seen meanwhile is kept too (never an automatic try).
+    const refusedMeanwhile = this.memory.refused;
     this.memory = normalizeMemory(raw, now);
     for (const stop of live) {
       this.memory.stops[stop.circuit] = stop;
+    }
+    if (refusedMeanwhile && !this.memory.refused) {
+      this.memory.refused = true;
+      // Printed again with the salt of the file (the key refused is the current one).
+      this.memory.fp = this.config.problem ? '' : refusalPrint(this.memory.salt, this.config);
     }
     this.memoryLoaded = true;
     const mono = this.monotonic();
@@ -262,7 +269,7 @@ export class EmsApp {
         ? mono + Math.min(TIMINGS.pauseMax, this.memory.pausedUntil - now)
         : 0,
     );
-    if (live.length > 0) {
+    if (live.length > 0 || refusedMeanwhile) {
       void this.saveMemory();
     }
   }
@@ -1563,12 +1570,13 @@ export class EmsApp {
       if (err.sent) {
         this.followUp(ctx.session);
       }
-      // Not sent, or answered with a refusal (4xx, 429): the switching on did
+      // Not sent, or answered with a refusal (3xx, 4xx, 429): the switching on did
       // not leave, the stop holds again and its resends go on. Sent without
       // an answer, or a 5xx: it left, a newer command of this circuit, so the
       // resends of the old stop are not brought back (the follow-up reads
       // show what applies; a new "Off" is a click away).
-      const refused = err.code === CODES.HTTP && err.status >= 400 && err.status <= 499;
+      // A redirection counts as a refusal too (EMS-ESP never redirects /api, a proxy may).
+      const refused = err.code === CODES.HTTP && err.status >= 300 && err.status <= 499;
       if (!err.sent || refused) {
         this.restoreStop(held);
       }

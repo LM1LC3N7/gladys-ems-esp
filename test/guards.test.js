@@ -153,8 +153,20 @@ test('a gateway that answers nothing: the reads follow their backoff, the stop n
   assert.ok(reads(t) - r0 <= 8, `${reads(t) - r0} reads`);
 });
 
+// Salts checked by hand: with SALT_APART the 8-bit prints of WRONG and of
+// CONFIG.token differ, with SALT_SAME they are equal (one chance in 256).
+const SALT_APART = '0'.repeat(32);
+const SALT_SAME = `${'0'.repeat(30)}62`;
+
+test('the two salts of these tests give the prints they say', async () => {
+  const { refusalPrint } = await import('../src/store.js');
+  const print = (salt, token) => refusalPrint(salt, { host: '192.168.1.50', port: 80, token });
+  assert.notEqual(print(SALT_APART, WRONG), print(SALT_APART, CONFIG.token));
+  assert.equal(print(SALT_SAME, WRONG), print(SALT_SAME, CONFIG.token));
+});
+
 test('a restart with another key lifts a refusal kept in /data at once', async () => {
-  const store = memoryStore();
+  const store = memoryStore({ salt: SALT_APART });
   const a = await setup({ store, config: { ...CONFIG, token: WRONG } });
   a.dev.readKey = true;
   await a.connect();
@@ -165,6 +177,56 @@ test('a restart with another key lifts a refusal kept in /data at once', async (
   await t.connect();
   assert.equal(reads(t), 1, 'read at once with the other key');
   assert.equal(store.data.refused, false);
+});
+
+test('another key whose print collides: the refusal holds at a restart, the button lifts it', async () => {
+  const store = memoryStore({ salt: SALT_SAME });
+  const a = await setup({ store, config: { ...CONFIG, token: WRONG } });
+  a.dev.readKey = true;
+  await a.connect();
+  assert.equal(store.data.refused, true);
+  await a.app.stop();
+  const t = await setup({ store, clock: a.clock });
+  t.dev.readKey = true;
+  await t.connect();
+  assert.equal(reads(t), 0, 'the same print: taken for the same key');
+  // The button, past the interval after the last read.
+  await t.wait(61 * SECOND);
+  assert.equal(reads(t), 0, 'still no automatic try');
+  const answer = await t.during(t.app.testConnection());
+  assert.match(answer.value, /Connecté/);
+  assert.equal(store.data.refused, false);
+});
+
+test('a key refused while /data is stuck is kept once /data answers: no automatic try', async () => {
+  const store = memoryStore();
+  store.frozen = true;
+  const t = await setup({ store, config: { ...CONFIG, token: WRONG } });
+  t.dev.readKey = true;
+  await t.connect();
+  await t.wait(3 * SECOND);
+  assert.equal(t.app.memory.refused, true);
+  const r0 = reads(t);
+  store.thaw();
+  await t.wait(30 * MINUTE);
+  assert.equal(reads(t), r0, 'no read by itself');
+  assert.equal(store.data.refused, true, 'saved once /data answers');
+});
+
+test('switching on answered with a redirection: the stop holds and is sent again', async () => {
+  const store = memoryStore();
+  const t = await setup({ store, config: ALLOW });
+  await t.connect();
+  await t.create();
+  t.dev.route = (path, method) => (method === 'POST' ? 'silent' : undefined);
+  await t.command('dhw1-mode', 'off');
+  t.dev.route = (path, method) => (method === 'POST' ? { status: 302, body: '' } : undefined);
+  const ack = await t.command('dhw1-mode', 'on');
+  assert.equal(ack.success, false);
+  assert.ok(kept(store), 'the stop holds');
+  t.dev.route = undefined;
+  await t.wait(2 * MINUTE);
+  assert.equal(t.dev.entities[DHW_MODE].value, false, 'the stop sent again');
 });
 
 test('values read longer ago than two intervals are never published', async () => {

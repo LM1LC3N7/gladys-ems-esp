@@ -36,7 +36,14 @@ to date at the end of every milestone.
       after stop() (no save either); M3 `timeout-minutes` in CI; M4 Turkish
       upper case; M5 "On" sent without an answer no longer brings the stop
       back (refused or unsent: it does); M6 noted below.
-- [ ] **Review r2**.
+- [x] **Review r2 fixes** (2026-11-11, review r2 of 3096120): I1 the test of
+      a restart with another key used a random salt (its 8-bit prints
+      collide once in 256): fixed salts, checked by a test, and a second test
+      for a collision (the refusal holds, the button lifts it); suite run
+      100 times under node:22-alpine, green; N1 a refusal of the key seen
+      while /data was stuck is kept (and saved) once /data answers; N2 a 3xx
+      to "On" counts as a refusal (the stop holds).
+- [ ] **Review r3**.
 
 ## Decisions
 
@@ -118,8 +125,8 @@ to date at the end of every milestone.
   store, app flow, test kit), its review r1 fixes included.
 - **Manifest**: `categories: ["climate"]`, `transports: ["local"]`; no
   `keywords` nor `countries` (would be DE, NL, UK, BE and the EU).
-- **Mutation checks**: `test/mutants.json` (98: ours, the 30 of review r1
-  and those of its fixes), run with `memcap npm run mutants`. Three
+- **Mutation checks**: `test/mutants.json` (101: ours, the 30 of review r1
+  and those of the fixes of r1 and r2), run with `memcap npm run mutants`. Three
   survivors marked `equivalent`, kept as second guards: `startedAt >
 stopSentAt` in `observe()` (a read begun before a stop left is already
   dropped by the write counter, the stop counting as a write); the stop

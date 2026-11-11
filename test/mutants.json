@@ -535,6 +535,24 @@
       "find": "  queue: 16,",
       "replace": "  queue: 4,",
       "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (refusedMeanwhile && !this.memory.refused) {",
+      "replace": "    if (false) {",
+      "from": "r2 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "err.status >= 300 && err.status <= 499;",
+      "replace": "err.status >= 400 && err.status <= 499;",
+      "from": "r2 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (live.length > 0 || refusedMeanwhile) {",
+      "replace": "    if (live.length > 0) {",
+      "from": "r2 fix"
     }
   ]
 }
