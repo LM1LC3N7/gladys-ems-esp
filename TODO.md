@@ -43,7 +43,12 @@ to date at the end of every milestone.
       100 times under node:22-alpine, green; N1 a refusal of the key seen
       while /data was stuck is kept (and saved) once /data answers; N2 a 3xx
       to "On" counts as a refusal (the stop holds).
-- [ ] **Review r3**.
+- [x] **Review r3 fixes** (2026-11-11): the HTTP tests wait for their
+      condition with a bounded `until` (no fixed wait before a count), the
+      refused port tried again on another port when taken meanwhile, the
+      real clock test waits for the stuck read (bounded); suite 60 times
+      under node:22-alpine, green.
+- [ ] **Review r4**.
 
 ## Decisions
 

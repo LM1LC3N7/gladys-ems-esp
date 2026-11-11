@@ -24,6 +24,34 @@ const base = (port, extra = {}) => ({
   ...extra,
 });
 
+/** Waits for `condition`, every 5 ms, failing after `ms` (never a fixed wait before a count). */
+const until = async (condition, ms = 2000, what = 'condition') => {
+  const deadline = performance.now() + ms;
+  while (!condition()) {
+    if (performance.now() > deadline) {
+      throw new Error(`timed out waiting for ${what}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+};
+
+/**
+ * A request to a port nothing listens on: refusePort() closes a port then
+ * connects to it, and another process may take it meanwhile; such a run is
+ * tried again on another port (5 times at most).
+ */
+const refusedRequest = async () => {
+  let err;
+  for (let i = 0; i < 5; i += 1) {
+    const port = await refusePort();
+    err = await failure(httpRequest(base(port, { timeout: 1000 })));
+    if (err.code === CODES.UNREACHABLE && !err.sent) {
+      break;
+    }
+  }
+  return err;
+};
+
 const failure = async (promise) => {
   try {
     await promise;
@@ -81,9 +109,8 @@ test('beforeSend refusing: not one byte written', async (t) => {
   assert.equal(err.message, 'option off');
   assert.equal(err.beforeSend, true);
   assert.equal(err.sent, false);
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await until(() => hole.connections === 1 && hole.open === 0, 2000, 'the socket closed');
   assert.equal(hole.received, 0);
-  assert.equal(hole.open, 0, 'the socket closed');
 });
 
 test('an answer larger than allowed is cut before its end', async (t) => {
@@ -106,8 +133,7 @@ test('a silent gateway: timeout, sent; a refused port: unreachable, not sent', a
   assert.equal(err.code, CODES.TIMEOUT);
   assert.equal(err.sent, true);
   assert.equal(hole.open, 0, 'closed before settling');
-  const port = await refusePort();
-  const refused = await failure(httpRequest(base(port)));
+  const refused = await refusedRequest();
   assert.equal(refused.code, CODES.UNREACHABLE);
   assert.equal(refused.sent, false);
 });
@@ -117,14 +143,13 @@ test('an abort settles once the socket is closed', async (t) => {
   t.after(() => hole.close());
   const controller = new AbortController();
   const pending = failure(httpRequest(base(hole.port, { signal: controller.signal })));
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await until(() => hole.received > 0, 2000, 'the request written');
   assert.equal(hole.open, 1);
   controller.abort();
   const err = await pending;
   assert.equal(err.code, CODES.ABORTED);
   assert.equal(err.sent, true);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(hole.open, 0);
+  await until(() => hole.open === 0, 2000, 'the socket closed');
 });
 
 test('the client: one connection at a time, the stop first, a stuck read cut', async (t) => {
@@ -155,7 +180,7 @@ test('the client: one connection at a time, the stop first, a stuck read cut', a
   const b = failure(client.get('/api/thermostat'));
   const c = client.get('/api/system');
   await a;
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await until(() => seen.length === 2, 2000, 'the stuck read at the server');
   // The read is stuck; c waits behind it; the stop cuts it and leaves first.
   await client.stop('/api/boiler/dhw/activated', 'off');
   assert.equal((await b).code, CODES.ABORTED);

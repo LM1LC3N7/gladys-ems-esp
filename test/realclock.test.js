@@ -87,7 +87,11 @@ test('real clock x20: "Off" cuts a stuck read and is sent at once', async (t) =>
   await app.connected(async () => config);
   stuck = true;
   // The next read gets stuck on the values of the thermostat.
-  await clock.sleep(INTERVAL + 1000);
+  // Waited for, bounded (never a fixed wait before the check): 3 intervals at most.
+  await clock.sleep(INTERVAL);
+  for (let i = 0; i < 600 && !app.session.client.busy; i += 1) {
+    await clock.sleep(100);
+  }
   assert.equal(app.session.client.busy, true);
   stuck = false;
   const key = identityKey('boiler', 123, '0x08');
