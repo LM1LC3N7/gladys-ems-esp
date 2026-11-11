@@ -15,19 +15,22 @@ RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
-# Install the PROD dependencies first (better build cache).
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --omit=dev
+# Install the PROD dependencies first (better build cache). The lockfile is
+# committed: strict `npm ci`, and no install script runs.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
 
-# Then the integration code.
+# Then the integration code, its license and the third-party notices.
 COPY index.js ./
 COPY src ./src
-COPY gladys-assistant-integration.json ./
+COPY gladys-assistant-integration.json LICENSE THIRD_PARTY_NOTICES.md ./
 
-# The only writable location allowed at runtime. Docker creates a new volume
-# with the owner of the image's /data, so it must belong to `node`, and before
-# VOLUME: changes made to /data after it are discarded. Without this, /data is
-# root-owned and the integration cannot write to it.
+# The only writable location allowed at runtime: this integration keeps
+# ems-esp-state.json there (a pause after HTTP 429/5xx, the stop after
+# a refused API key with 8 bits of a salted print, the time of the last
+# read, the stops of circuits sent from Gladys; never a secret). Docker
+# creates the volume with the owner of the image's /data: it must belong to
+# `node`, and before VOLUME.
 ENV NODE_ENV=production
 RUN mkdir -p /data && chown node:node /data
 VOLUME ["/data"]

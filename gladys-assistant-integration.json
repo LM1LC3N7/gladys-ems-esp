@@ -1,177 +1,185 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "EMS-ESP (Bosch, Buderus)",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Boilers and heat pumps on an EMS-ESP gateway, local: heating, hot water, optional commands.",
+    "fr": "Chaudières et PAC via une passerelle EMS-ESP en local : chauffage, eau chaude, commandes au choix."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-ems-esp:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-ems-esp/main/cover.png",
+  "categories": ["climate"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your EMS-ESP gateway",
+        "fr": "Votre passerelle EMS-ESP"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Shows in Gladys a boiler or heat pump of the Bosch group (Bosch, Buderus, Junkers, Nefit, Worcester, Sieger...) read on its EMS bus by an EMS-ESP gateway (an ESP32 board with the free EMS-ESP firmware), on your local network, without any cloud: outdoor and supply temperatures, pressure, the heating of the boiler, each heating circuit of the thermostat (room temperature, setpoint, mode) and each hot water (temperature, setpoint, on/off), optionally changed from Gladys. Enter the address of the gateway (and an API key of EMS-ESP: needed from version 3.10, and for any command), save, then add the device from the Discovery tab. Never tested with a real gateway. Not affiliated with EMS-ESP, Bosch or Buderus.",
+        "fr": "Affiche dans Gladys une chaudière ou une pompe à chaleur du groupe Bosch (Bosch, Buderus, Junkers, Nefit, Worcester, Sieger...) lue sur son bus EMS par une passerelle EMS-ESP (une carte ESP32 avec le micrologiciel libre EMS-ESP), sur votre réseau local, sans cloud : températures extérieure et de départ, pression, le chauffage de la chaudière, chaque circuit de chauffage du thermostat (température ambiante, consigne, mode) et chaque eau chaude (température, consigne, marche/arrêt), modifiables depuis Gladys en option. Saisissez l’adresse de la passerelle (et une clé d’API d’EMS-ESP : nécessaire depuis la version 3.10, et pour toute commande), enregistrez, puis ajoutez l’appareil depuis l’onglet Découverte. Jamais testé avec une vraie passerelle. Sans lien avec EMS-ESP, Bosch ni Buderus."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/LM1LC3N7/gladys-ems-esp/blob/main/docs/fr.md",
+          "label": {
+            "en": "Guide (French)",
+            "fr": "Guide (français)"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-ems-esp/blob/main/docs/en.md",
+          "label": {
+            "en": "Guide (English)",
+            "fr": "Guide (anglais)"
+          }
+        },
+        {
+          "url": "https://docs.emsesp.org/",
+          "label": {
+            "en": "EMS-ESP documentation",
+            "fr": "Documentation d’EMS-ESP"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "address",
+      "type": "string",
+      "label": {
+        "en": "Address of the EMS-ESP gateway",
+        "fr": "Adresse de la passerelle EMS-ESP"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "description": {
+        "en": "Its IPv4 address or host name on your network, with a port if not 80 (plain http, as EMS-ESP answers). Give it a fixed address in your router (an .local name may not resolve from the container).",
+        "fr": "Son adresse IPv4 ou son nom d’hôte sur votre réseau, avec un port s’il n’est pas 80 (http simple, comme EMS-ESP répond). Donnez-lui une adresse fixe dans votre box (un nom en .local peut ne pas se résoudre depuis le conteneur)."
+      },
+      "placeholder": {
+        "en": "192.168.1.50",
+        "fr": "192.168.1.50"
+      },
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "default": ""
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "token",
+      "type": "secret",
+      "label": {
+        "en": "API key of EMS-ESP (optional for reading before 3.10)",
+        "fr": "Clé d’API d’EMS-ESP (facultative en lecture avant 3.10)"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Created in EMS-ESP, Settings, Security, API keys (\"Read and Write\" for the commands, stops included; \"Read\" is enough to only read). Older versions: the access token of the admin user. Kept by Gladys in its database, never shown again, sent only to your EMS-ESP gateway (Authorization header).",
+        "fr": "Créée dans EMS-ESP, Paramètres, Sécurité, Clés d’API (« Lecture et écriture » pour les commandes, arrêts compris ; « Lecture » suffit pour lire seulement). Versions anciennes : le jeton d’accès de l’utilisateur admin. Gardée par Gladys dans sa base, jamais réaffichée, envoyée seulement à votre passerelle EMS-ESP (en-tête Authorization)."
+      },
+      "required": false
     },
     {
-      "key": "unit",
+      "key": "commands_section",
+      "type": "section",
+      "label": {
+        "en": "Commands",
+        "fr": "Commandes"
+      },
+      "description": {
+        "en": "By default Gladys only reads. Once allowed, the dashboard, the scenes and the voice assistants can switch the heating of the boiler and the hot water on, change the mode of each heating circuit and the room and hot water setpoints, always within the bounds EMS-ESP gives and those below. \"Off\" (the heating of the boiler, a hot water, a heating circuit whose thermostat lists an off mode) needs no option: it stops that circuit; the guide lists the cases where it is still refused. It needs a key with the \"Read and Write\" right, as every command does.",
+        "fr": "Par défaut Gladys ne fait que lire. Une fois autorisés, le tableau de bord, les scènes et les assistants vocaux peuvent remettre en marche le chauffage de la chaudière et l’eau chaude, changer le mode de chaque circuit de chauffage et les consignes de pièce et d’eau chaude, toujours dans les bornes que donne EMS-ESP et celles ci-dessous. « Arrêt » (le chauffage de la chaudière, une eau chaude, un circuit de chauffage dont le thermostat propose un mode arrêt) n’a pas besoin d’option : il arrête ce circuit ; le guide liste les cas où il est encore refusé. Il demande une clé avec le droit « Lecture et écriture », comme toute commande."
+      }
+    },
+    {
+      "key": "allow_commands",
+      "type": "boolean",
+      "label": {
+        "en": "Allow switching on, the modes and the setpoints",
+        "fr": "Autoriser la remise en marche, les modes et les consignes"
+      },
+      "description": {
+        "en": "Off by default. Off: every \"On\", every mode other than \"Off\" and every setpoint change are refused. \"Off\" is never refused for this reason.",
+        "fr": "Désactivé par défaut. Désactivé : toute « Marche », tout mode autre que « Arrêt » et tout changement de consigne sont refusés. « Arrêt » n’est jamais refusé pour cette raison."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "max_dhw",
+      "type": "number",
+      "label": {
+        "en": "Hot water setpoint ceiling (°C)",
+        "fr": "Plafond des consignes d'eau chaude (°C)"
+      },
+      "description": {
+        "en": "Gladys never sets the hot water above this temperature (scalding risk). 65 °C by default, from 40 to 65 °C (never more than 65 °C, whatever is typed; the maximum EMS-ESP gives applies when lower). The floor is 20 °C.",
+        "fr": "Gladys ne règle jamais l’eau chaude au-dessus de cette température (risque de brûlure). 65 °C par défaut, de 40 à 65 °C (jamais plus de 65 °C, quoi qu’on saisisse ; le maximum que donne EMS-ESP s’applique s’il est plus bas). Le plancher est de 20 °C."
+      },
+      "required": false,
+      "default": 65,
+      "min": 40,
+      "max": 65
+    },
+    {
+      "key": "poll_interval",
+      "type": "number",
+      "label": {
+        "en": "Refresh interval (s)",
+        "fr": "Intervalle de rafraîchissement (s)"
+      },
+      "description": {
+        "en": "How often EMS-ESP is read, in seconds (a few requests: the system, the boiler, the thermostat and the mode of each heating circuit).",
+        "fr": "Fréquence de lecture d’EMS-ESP, en secondes (quelques requêtes : le système, la chaudière, le thermostat et le mode de chaque circuit de chauffage)."
+      },
+      "required": false,
+      "default": 60,
+      "min": 30,
+      "max": 900
+    },
+    {
+      "key": "language",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": {
+        "en": "Language of the feature names",
+        "fr": "Langue des noms des fonctionnalités"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Used for the names of the device and features added from now on, for the mode labels, the status texts and the command errors.",
+        "fr": "Sert aux noms de l'appareil et des fonctionnalités ajoutés désormais, aux libellés des modes, aux textes d'état et aux erreurs des commandes."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français"
+          }
+        },
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion"
+      },
+      "description": {
+        "en": "Reads EMS-ESP once (even after a refused key), never sooner than the refresh interval after the last read, and shows its state.",
+        "fr": "Lit EMS-ESP une fois (même après une clé refusée), jamais plus tôt que l’intervalle de rafraîchissement après la dernière lecture, et affiche son état."
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
-    }
-  ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
     }
   ]
 }

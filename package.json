@@ -1,8 +1,8 @@
 {
-  "name": "gladys-integration-template-js",
-  "version": "1.0.0",
+  "name": "gladys-ems-esp",
+  "version": "0.1.0",
   "private": true,
-  "description": "Official starter template to build an external integration for Gladys Assistant with the JavaScript SDK.",
+  "description": "Gladys Assistant external integration for Bosch, Buderus, Junkers, Nefit and Worcester boilers and heat pumps through a local EMS-ESP gateway (REST API): temperatures, heating circuits, hot water, optional bounded commands. Unofficial, not affiliated with EMS-ESP, Bosch or Buderus.",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -10,10 +10,18 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node --test"
+    "test": "node --test --test-timeout=60000",
+    "audit": "npm audit --omit=dev",
+    "cover": "node scripts/cover.mjs cover.png",
+    "validate:manifest": "npx --yes github:GladysAssistant/integration-store .",
+    "mutants": "node scripts/mutants.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LM1LC3N7/gladys-ems-esp.git"
   },
   "dependencies": {
     "@gladysassistant/integration-sdk": "^0.16.0"

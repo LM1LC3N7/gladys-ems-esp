@@ -1,0 +1,287 @@
+{
+  "note": "Guards and the mutant that removes or weakens each one; `npm run mutants` runs them one at a time in a temporary copy (scripts/mutants.mjs). `equivalent`: a survivor explained in TODO.md.",
+  "mutants": [
+    {
+      "file": "src/app.js",
+      "find": "if (this.memoryBroken || !this.memoryLoaded) {\n      return Promise.resolve(false);",
+      "replace": "if (this.memoryBroken) {\n      return Promise.resolve(false);"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (isMissing(err) || err?.code === CODES.BAD_ANSWER) {",
+      "replace": "if (true) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (isDenied(err)) {\n        throw new EmsError(CODES.AUTH, { sent: true, status: err.status });",
+      "replace": "      if (false) {\n        throw new EmsError(CODES.AUTH, { sent: true, status: err.status });"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (this.writes !== writes) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "Math.min(DHW.max, this.config.dhwCeiling)",
+      "replace": "this.config.dhwCeiling"
+    },
+    {
+      "file": "src/app.js",
+      "find": "!this.listedModes(target.key, target.circuit).has(value)",
+      "replace": "false"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (!this.config.allowCommands) {\n      throw this.refusal(ERRORS.disabled);\n    }\n    if (this.queued",
+      "replace": "    if (this.queued"
+    },
+    {
+      "file": "src/app.js",
+      "find": "  check({ generation, session, epoch }) {\n    if (!this.config.allowCommands) {",
+      "replace": "  check({ generation, session, epoch }) {\n    if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (epoch !== this.stopEpoch) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (this.memoryBroken || !this.memoryLoaded) {\n      // A stop of Gladys",
+      "replace": "    if (false) {\n      // A stop of Gladys"
+    },
+    {
+      "file": "src/app.js",
+      "find": "item.target.suffix === R.SETPOINT && this.memory.stops[item.target.circuit]",
+      "replace": "false"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (!mode.allowed.includes(wanted) || !mode.index.has(wanted)) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        await this.saveStrict();",
+      "replace": "        void this.saveStrict();"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        beforeSend: () => {\n          this.check(ctx);\n          this.writes += 1;",
+      "replace": "        beforeSend: () => {\n          this.writes += 1;"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (kind === 'dhw' && wanted > DHW.max) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    checkRange();\n    if (current.value === wanted) {",
+      "replace": "    if (current.value === wanted) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "          if (this.memory.stops[item.target.circuit]) {\n            throw this.refusal(ERRORS.stopHolds);",
+      "replace": "          if (false) {\n            throw this.refusal(ERRORS.stopHolds);",
+      "equivalent": true
+    },
+    {
+      "file": "src/app.js",
+      "find": "          // The ceiling may have been lowered since the command arrived.\n          checkRange();",
+      "replace": "          // The ceiling may have been lowered since the command arrived."
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (known && known !== target.key) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    // Never waited for: the stop does not depend on /data.\n    void this.saveMemory();",
+      "replace": "    // Never waited for: the stop does not depend on /data.\n    await this.saveMemory();"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        err.code === CODES.UNREACHABLE &&",
+      "replace": "        false &&"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (!err || err.sent) {",
+      "replace": "if (!err) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (!err || err.sent) {",
+      "replace": "if (true) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (blind && err) {",
+      "replace": "    if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "          current.resends += 1;",
+      "replace": "          ;"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        current.tries += 1;",
+      "replace": "        ;"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      stop.tries < TIMINGS.stopResends &&",
+      "replace": ""
+    },
+    {
+      "file": "src/app.js",
+      "find": "      !(known && known !== stop.key),",
+      "replace": "      true,"
+    },
+    {
+      "file": "src/app.js",
+      "find": "startedAt <= (this.stopSentAt.get(stop.circuit) ?? -Infinity)",
+      "replace": "false",
+      "equivalent": true
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (stop.starts >= 2) {",
+      "replace": "if (stop.starts >= 1) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        stop.resends < TIMINGS.stopResends &&\n        !this.stopping",
+      "replace": "        !this.stopping"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (!this.memory.refused && this.stopToResend(session, stop)) {",
+      "replace": "if (this.stopToResend(session, stop)) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (!this.memory.refused && this.stopToResend(session, stop)) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "const floor = Math.max(TIMINGS.testCooldown, this.interval);",
+      "replace": "const floor = TIMINGS.testCooldown;"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (created.length > 0 && !created.includes(data.key)) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/emsesp/client.js",
+      "find": "    this.gate.preempt();",
+      "replace": ""
+    },
+    {
+      "file": "src/emsesp/client.js",
+      "find": "if (!PATH.test(path)) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/emsesp/http.js",
+      "find": "            if (!written) {",
+      "replace": "            if (false) {"
+    },
+    {
+      "file": "src/emsesp/http.js",
+      "find": "if (size > maxBytes) {",
+      "replace": "if (false) {"
+    },
+    {
+      "file": "src/store.js",
+      "find": "!stat.isFile() || ",
+      "replace": ""
+    },
+    {
+      "file": "src/store.js",
+      "find": " | fs.O_NONBLOCK,",
+      "replace": ","
+    },
+    {
+      "file": "src/store.js",
+      "find": "!kindOf(circuit) || ",
+      "replace": ""
+    },
+    {
+      "file": "src/model.js",
+      "find": "return celsius < min || celsius > max ? undefined : celsius;",
+      "replace": "return celsius;"
+    },
+    {
+      "file": "src/model.js",
+      "find": "  const celsius = !fahrenheit && (uom === undefined || CELSIUS_UNITS.has(uom));",
+      "replace": "  const celsius = true;"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (!current.celsius) {",
+      "replace": "    if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (data.bus !== 'connected') {",
+      "replace": "    if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "const live = Boolean(key) && system.bus === 'connected';",
+      "replace": "const live = Boolean(key);"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (isDenied(err)) {\n      return this.refusal(ERRORS.denied);",
+      "replace": "    if (false) {\n      return this.refusal(ERRORS.denied);"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (value === OFF) {\n        return this.protect(target, received);",
+      "replace": "      if (false) {\n        return this.protect(target, received);"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (CIRCUIT_FIELDS[kindOf(circuit)].boolean) {\n      listed.add(ON);\n      listed.add(OFF);\n      return listed;",
+      "replace": "    if (CIRCUIT_FIELDS[kindOf(circuit)].boolean) {\n      listed.add(ON);\n      listed.add(OFF);\n      listed.add('x');\n      return listed;"
+    },
+    {
+      "file": "src/model.js",
+      "find": "  if (OFF_WORDS.has(trimmed.toLowerCase())) {",
+      "replace": "  if (trimmed === 'off') {"
+    },
+    {
+      "file": "src/model.js",
+      "find": "    fahrenheit: own(settings, 'fahrenheit') === true,",
+      "replace": "    fahrenheit: false,"
+    },
+    {
+      "file": "src/model.js",
+      "find": "  const writable = own(detail, 'writeable') === true;",
+      "replace": "  const writable = true;"
+    },
+    {
+      "file": "src/model.js",
+      "find": "    if (busStatus.startsWith('connected')) {",
+      "replace": "    if (true) {"
+    },
+    {
+      "file": "src/emsesp/client.js",
+      "find": "      value: token ? `Bearer ${token}` : undefined,\n      enumerable: false,",
+      "replace": "      value: token ? `Bearer ${token}` : undefined,\n      enumerable: true,"
+    },
+    {
+      "file": "src/config.js",
+      "find": "  if (!problem && token === undefined) {",
+      "replace": "  if (false) {"
+    }
+  ]
+}
