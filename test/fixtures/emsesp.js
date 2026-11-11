@@ -74,12 +74,16 @@ const ON_TEXT = new Set(['on', 'true', '1']);
  * `writeKeys` (the keys allowed to write), `boolFormat` ('onoff', 'true',
  * '10'), `enumIndex` (enums given as their index).
  */
-export function fakeEmsEsp({ timers, latency = 0 } = {}) {
+/** More requests than this within one second of the clock: a flood (a test fails at once). */
+export const FLOOD = 60;
+
+export function fakeEmsEsp({ timers, latency = 0, elapsed } = {}) {
   const dev = {
     entities: initialEntities(),
     system: initialSystem(),
     latency,
-    applyDelay: 0,
+    // EMS-ESP shows a write after its round trip on the bus (0.5 to 2 s).
+    applyDelay: 1000,
     connectDelay: 0,
     onConnect: undefined,
     ignoreWrites: false,
@@ -91,6 +95,9 @@ export function fakeEmsEsp({ timers, latency = 0 } = {}) {
     enumIndex: false,
     /** { path, method, value, headers } of every request that reached the gateway. */
     requests: [],
+    /** Set when the app floods the gateway (see FLOOD): the helpers fail the test. */
+    flooded: false,
+    second: { at: -1, count: 0 },
     /** Requests refused unsent (beforeSend, late, refused port). */
     unsent: 0,
     open: 0,
@@ -269,6 +276,18 @@ export function fakeEmsEsp({ timers, latency = 0 } = {}) {
     maxBytes,
   }) =>
     new Promise((resolve, reject) => {
+      // A runaway (a mutant without its interval) fails fast instead of
+      // filling the memory: requests counted per second of the clock.
+      const second = Math.floor((elapsed?.() ?? 0) / 1000);
+      if (dev.second.at !== second) {
+        dev.second = { at: second, count: 0 };
+      }
+      dev.second.count += 1;
+      if (dev.second.count > FLOOD || dev.requests.length > 20_000) {
+        dev.flooded = true;
+        reject(new Error('flood'));
+        return;
+      }
       const route = dev.route?.(path, method);
       let settled = false;
       let written = false;

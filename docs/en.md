@@ -19,8 +19,9 @@ integration reads it.
 One Gladys device per installation, read every 60 s by default:
 
 - outdoor and supply temperatures, system pressure (read on the boiler);
-- **heating (boiler)**: the heating of the boiler on/off
-  (`heatingactivated`, the "summer mode" of the boiler);
+- **heating of the boiler, all circuits**: the heating of the boiler on/off
+  (`heatingactivated`, the "summer mode" of the boiler: it stops the heating
+  of **all** circuits, see The stop);
 - for each **heating circuit** of the thermostat (hc1 to hc4): room
   temperature, room setpoint, mode (manual, auto, day, night, frost
   protection... depending on the thermostat, with "Off" when it lists one);
@@ -86,11 +87,16 @@ writes with its bounds, its modes and whether it takes a write) and decides
 on that read, not on the values kept in memory; commands arriving together
 (a scene) share that read, leave one by one, then each is read back. A
 command leaves by 3.5 s after the click, otherwise it is refused and nothing
-is sent. It is reported successful only when a read made after it, before
-4.3 s, shows the value asked; otherwise Gladys shows "sent and accepted, not
-applied yet" (or "sent, without confirmation" when EMS-ESP did not answer),
-and the follow-up reads, 5 s and 20 s later, publish the value as soon as it
-shows. Beyond 4 commands waiting, they are refused. An HTTP 4xx refusal of a
+is sent. EMS-ESP answers once the write is queued and shows the new value
+only after its trip on the bus (0.5 to 2 s): the entity is read again every
+600 ms, and the command is reported successful only when one of these reads,
+before 4.3 s, shows the value asked; otherwise Gladys shows "sent and
+accepted, not applied yet" (or "sent, without confirmation" when EMS-ESP did
+not answer), and the follow-up reads, 5 s and 20 s later, publish the value
+as soon as it shows. Beyond 16 commands waiting, they are refused. As
+EMS-ESP serves one request at a time, a scene of 5 setpoints is set and
+confirmed up to about 200 ms per request; on a slower gateway (500 ms and
+more), the last ones are refused "nothing sent" for lack of time. An HTTP 4xx refusal of a
 command concerns it only: the reads go on. A 401/403 means the key has no
 right to write: the error says so.
 
@@ -111,8 +117,19 @@ SRC thermostats...) needs no option. The integration writes `off`, which
 EMS-ESP understands in all of its languages.
 
 **A circuit whose thermostat lists no off mode** (RC310, RC300, RC35...:
-manual and auto, day and night) cannot be stopped from its mode select: stop
-the heating of the boiler ("Heating (boiler) on/off"), with no option either.
+manual and auto, day and night) offers no stop: its mode select has no "Off"
+(the error says so). To stop the heating, use "Heating of the boiler, all
+circuits on/off", choice **"Off: heating of the boiler, all circuits"**, with
+no option either. Beware:
+
+- it stops the heating of **all** the circuits of the boiler (the "summer
+  mode" of the boiler), not of one;
+- while it holds, the frost protection driven by the thermostat may no
+  longer heat the installation: do not use it for a long absence in cold
+  weather;
+- it was not checked with an RC310 master of the bus: if the thermostat
+  switches the heating back on, two reads in a row show it and the guard of
+  the stop from Gladys is lifted (the state shows "on").
 
 The stop leaves without waiting for a read, ahead of any other request: a
 read under way is cut, the commands not sent yet are cancelled (nothing asked
@@ -129,16 +146,20 @@ The integration refuses it in these three cases only:
 - the last read showed **another** installation at this address.
 
 EMS-ESP itself refuses it without a key that has the "Read and Write" right
-(HTTP 401/403; the error says so) or in read only mode (the link status says
-so).
+(HTTP 401/403; the error says so). In read only mode, EMS-ESP takes it (HTTP 200) and never applies it: it stays "not applied yet" (the link status shows
+that mode).
 
 Only an answer of EMS-ESP counts as a try. When it cannot leave (gateway
 unreachable, cut), it is tried again for 250 ms, then kept in /data and sent
 again first by each next read, without limit, until EMS-ESP answers it: it
 leaves at the first read that reaches it, and at a restart of the
-integration or a change of configuration. Sent without an answer (timeout,
-cut) or refused with HTTP 429/5xx, it is sent again the same way, without
-being counted. It is not sent to another installation read at the address.
+integration or a change of configuration (or, when /data was slow at the
+start, as soon as it answers: it is read again every 10 s). Sent without an
+answer (timeout, cut) or refused with HTTP 429/5xx, it is sent again the same
+way, without being counted, at the rhythm of the periodic reads (their
+interval, their backoff after failures, the pause of 1, 2, 5 then 10 min
+after 429/5xx in a row); only the click triggers a quick follow-up read when
+it leaves without an answer. It is not sent to another installation read at the address.
 When EMS-ESP refuses it with HTTP 4xx while the reads go through, it is sent
 again twice at most, then the status says so. Clicked while EMS-ESP refuses
 the reads with the key, it is sent once: accepted, it counts; refused, it is
@@ -176,7 +197,8 @@ thermostat, the boiler or in EMS-ESP).
 - **Another installation answers at the address**: its values do not go to
   the device created; it shows as a new device in Discovery.
 - **EMS-ESP in read only mode**: the link status says so; EMS-ESP then
-  refuses every command, stops included.
+  takes every command without applying it, stops included ("not applied
+  yet").
 
 ## What /data keeps
 
@@ -185,7 +207,9 @@ of a salted print, enough to know whether it changed, not enough to find
 it), the time of the last read (a restart does not read sooner than the
 interval), the stops sent from Gladys. No secret. A read or a write of /data
 is not waited for more than 1.5 s: a stuck volume counts as unreadable and
-does not hold a stop.
+does not hold a stop. Unreadable, /data is read again every 10 s (one read at
+a time); once it answers, the stops it keeps leave and the commands are
+accepted again.
 
 ## Known limits
 
@@ -195,6 +219,10 @@ does not hold a stop.
   each heating circuit). EMS-ESP serves one request at a time: another
   application reading it at the same moment may cause a 429 and a pause of
   one minute.
+- A scene of more than a few setpoints on a slow gateway (see The commands).
+- "On" (or another mode) sent without an answer replaces the stop from
+  Gladys: the stop is not sent again; refused or never sent, the stop holds
+  and its resends go on.
 - Setpoints not written when EMS-ESP is set to °F.
 - Schedules, the hot water mode of the thermostat, one-time charge, energy,
   solar, mixers, heat pump details, sensors added to EMS-ESP: not in this

@@ -57,7 +57,10 @@ export function testClock({ start = Date.UTC(2026, 0, 1), step = 0.001 } = {}) {
     },
     async advance(ms) {
       const target = t + ms;
-      for (let guard = 0; guard < 100_000; guard += 1) {
+      // Bounded, and loud: a runaway of one-shot timers rejects instead of
+      // spinning (intervals, such as a publisher every second, are not counted).
+      let fired = 0;
+      for (;;) {
         let next;
         for (const [h, timer] of pending) {
           if (
@@ -71,7 +74,13 @@ export function testClock({ start = Date.UTC(2026, 0, 1), step = 0.001 } = {}) {
         const [h, timer] = next;
         t = Math.max(t, timer.at);
         if (timer.every) timer.at += timer.every;
-        else pending.delete(h);
+        else {
+          pending.delete(h);
+          fired += 1;
+          if (fired > 20_000) {
+            throw new AssertionError({ message: `more than 20000 timers fired in advance(${ms})` });
+          }
+        }
         timer.fn(...timer.args);
         await settle(1);
       }

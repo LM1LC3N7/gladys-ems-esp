@@ -30,10 +30,12 @@ User guides: [English](docs/en.md), [français](docs/fr.md).
   20 °C to a ceiling of 65 °C by default, 65 °C at most; always within the
   bounds EMS-ESP gives for the entity. Decided on a fresh read of the
   entity, checked again right before the request leaves, refused unsent
-  after 3.5 s, successful only when a read shows the value. Setpoints are not
+  after 3.5 s, successful only when a read shows the value (read again every
+  600 ms until 4.3 s: EMS-ESP applies a write after its trip on the bus). Setpoints are not
   written when EMS-ESP is set to °F.
-- **"Off" is the protective command** (the heating of the boiler, a hot
-  water, a heating circuit whose thermostat lists an off mode): no option;
+- **"Off" is the protective command** (the heating of the boiler, all
+  circuits at once; a hot water; a heating circuit whose thermostat lists an
+  off mode, none on RC310/RC300): no option;
   it cuts a read under way and leaves first, cancels the commands not sent
   yet, goes through a pause or a refused key (one try); kept in `/data` and
   sent again by the reads until EMS-ESP answers it (only answers count: 3
@@ -47,7 +49,7 @@ User guides: [English](docs/en.md), [français](docs/fr.md).
   stop, kept in `/data`, never an automatic retry; a 401 elsewhere is a value
   missing or a refused command. 429/5xx: a bounded pause kept in `/data`.
   Nothing secret in logs, statuses or `/data`; `/data` never waited on for
-  more than 1.5 s.
+  more than 1.5 s, read again every 10 s while unreadable.
 
 ## Credits
 

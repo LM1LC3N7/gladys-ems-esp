@@ -8,7 +8,7 @@ import { EmsApp } from '../../src/app.js';
 import { registerHandlers } from '../../src/handlers.js';
 import { memoryStore } from '../../src/store.js';
 import { identityKey } from '../../src/model.js';
-import { CONFIG, fakeEmsEsp } from '../fixtures/emsesp.js';
+import { CONFIG, FLOOD, fakeEmsEsp } from '../fixtures/emsesp.js';
 import { settle, testClock } from '../kit/index.mjs';
 
 export const SELECTOR = 'ems-esp-test';
@@ -22,10 +22,15 @@ export const F = (role, key = KEY) => `ext:${SELECTOR}:ems-esp:${key}:${role}`;
 /** A logger keeping its lines ('warn message'). */
 export function memoryLogger() {
   const lines = [];
+  // Bounded: a runaway never fills the memory with log lines.
   const log =
     (level) =>
-    (...args) =>
+    (...args) => {
       lines.push(`${level} ${args.map((a) => a?.message ?? String(a)).join(' ')}`);
+      if (lines.length > 5000) {
+        lines.splice(0, 1000);
+      }
+    };
   return { lines, debug: log('debug'), info: log('info'), warn: log('warn'), error: log('error') };
 }
 
@@ -38,7 +43,7 @@ export async function setup({
   getConfig,
 } = {}) {
   const gladys = createFakeGladys({ selector: SELECTOR, config, ...gladysOptions });
-  const dev = fakeEmsEsp({ timers: clock.timers, latency });
+  const dev = fakeEmsEsp({ timers: clock.timers, latency, elapsed: () => clock.elapsed });
   const logger = memoryLogger();
   const app = new EmsApp({
     gladys,
@@ -57,6 +62,9 @@ export async function setup({
   const wait = async (ms = 0) => {
     await clock.advance(ms);
     await settle(10);
+    if (dev.flooded) {
+      throw new Error(`the app floods EMS-ESP (more than ${FLOOD} requests in one second)`);
+    }
   };
   /** Runs a promise while the clock moves (step by step), and resolves its outcome. */
   const during = async (promise, ms = 10 * SECOND, step = 50) => {

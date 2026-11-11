@@ -52,8 +52,12 @@ test('discovery, then the states of the created device', async () => {
   const options = (role) => byRole(role).supported_options.map((o) => [o.value, o.label]);
   assert.deepEqual(options('heating-mode'), [
     ['on', 'Marche'],
-    ['off', 'Arrêt'],
+    ['off', 'Arrêt du chauffage de la chaudière, tous les circuits'],
   ]);
+  assert.equal(
+    byRole('heating-mode').name,
+    'Chauffage de la chaudière, tous les circuits : marche/arrêt',
+  );
   assert.deepEqual(options('dhw1-mode'), [
     ['on', 'Marche'],
     ['off', 'Arrêt'],

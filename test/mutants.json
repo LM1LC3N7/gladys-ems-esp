@@ -3,8 +3,8 @@
   "mutants": [
     {
       "file": "src/app.js",
-      "find": "if (this.memoryBroken || !this.memoryLoaded) {\n      return Promise.resolve(false);",
-      "replace": "if (this.memoryBroken) {\n      return Promise.resolve(false);"
+      "find": "if (this.memoryBroken || !this.memoryLoaded || (this.closed && !final)) {",
+      "replace": "if (this.memoryBroken || (this.closed && !final)) {"
     },
     {
       "file": "src/app.js",
@@ -109,13 +109,13 @@
     },
     {
       "file": "src/app.js",
-      "find": "if (!err || err.sent) {",
-      "replace": "if (!err) {"
+      "find": "    if (!err || (click && silent)) {",
+      "replace": "    if (!err) {"
     },
     {
       "file": "src/app.js",
-      "find": "if (!err || err.sent) {",
-      "replace": "if (true) {"
+      "find": "    if (!err || (click && silent)) {",
+      "replace": "    if (!err || silent) {"
     },
     {
       "file": "src/app.js",
@@ -124,8 +124,8 @@
     },
     {
       "file": "src/app.js",
-      "find": "          current.resends += 1;",
-      "replace": "          ;"
+      "find": "        if (resend) {\n          current.resends += 1;\n        }\n      }\n      void this.saveMemory();\n      return { ok: true };",
+      "replace": "      }\n      void this.saveMemory();\n      return { ok: true };"
     },
     {
       "file": "src/app.js",
@@ -134,8 +134,8 @@
     },
     {
       "file": "src/app.js",
-      "find": "      stop.tries < TIMINGS.stopResends &&",
-      "replace": ""
+      "find": "      stop.phase === 'unsent' &&\n      // Only answers refusing it count; a stop never answered is sent again\n      // at each read, without end.\n      stop.tries < TIMINGS.stopResends &&",
+      "replace": "      stop.phase === 'unsent' &&"
     },
     {
       "file": "src/app.js",
@@ -144,8 +144,8 @@
     },
     {
       "file": "src/app.js",
-      "find": "startedAt <= (this.stopSentAt.get(stop.circuit) ?? -Infinity)",
-      "replace": "false",
+      "find": "if (stop.key !== key || startedAt <= sentAt) {",
+      "replace": "if (stop.key !== key) {",
       "equivalent": true
     },
     {
@@ -155,18 +155,18 @@
     },
     {
       "file": "src/app.js",
-      "find": "        stop.resends < TIMINGS.stopResends &&\n        !this.stopping",
-      "replace": "        !this.stopping"
+      "find": "        stop.resends < TIMINGS.stopResends &&\n        stop.tries < TIMINGS.stopResends &&",
+      "replace": "        stop.resends < TIMINGS.stopResends &&"
     },
     {
       "file": "src/app.js",
-      "find": "if (!this.memory.refused && this.stopToResend(session, stop)) {",
-      "replace": "if (this.stopToResend(session, stop)) {"
+      "find": "        session.online === false\n      ) {\n        return;\n      }\n      // Stops never answered go first, as at every read.",
+      "replace": "        false\n      ) {\n        return;\n      }\n      // Stops never answered go first, as at every read."
     },
     {
       "file": "src/app.js",
-      "find": "if (!this.memory.refused && this.stopToResend(session, stop)) {",
-      "replace": "if (false) {"
+      "find": "        this.pauseLeft() > 0 ||\n        session.online === false",
+      "replace": "        session.online === false"
     },
     {
       "file": "src/app.js",
@@ -282,6 +282,259 @@
       "file": "src/config.js",
       "find": "  if (!problem && token === undefined) {",
       "replace": "  if (false) {"
+    },
+    {
+      "file": "src/app.js",
+      "find": "void this.connected(getConfig);",
+      "replace": ";",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "void this.resendStop(session, stop, 'restart');",
+      "replace": ";",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "await this.resendStop(session, stop, 'read');",
+      "replace": ";",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    this.stopEpoch += 1;",
+      "replace": "    ;",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (!err.sent || refused) {\n        this.restoreStop(held);\n      }",
+      "replace": "      if (!err.sent) {\n        this.restoreStop(held);\n      }",
+      "from": "review r1"
+    },
+    {
+      "file": "src/store.js",
+      "find": "Math.min(pausedUntil, now + TIMINGS.pauseMax)",
+      "replace": "pausedUntil",
+      "from": "review r1"
+    },
+    {
+      "file": "src/store.js",
+      "find": "value > 0 && value <= now ? value : 0",
+      "replace": "value > 0 ? value : 0",
+      "from": "review r1"
+    },
+    {
+      "file": "src/emsesp/http.js",
+      "find": "if (Number.isFinite(declared) && declared > maxBytes) {",
+      "replace": "if (false) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (this.memory.refused) {\n      // The button tried",
+      "replace": "    if (false) {\n      // The button tried",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "this.memory.fp !== refusalPrint(this.memory.salt, this.config)",
+      "replace": "false",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "elapsed <= 2 * this.interval + 30 * SECOND ? data : undefined",
+      "replace": "data",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        stop.starts += 1;",
+      "replace": "        stop.starts += 2;",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (off && this.memory.stops[target.circuit] === stop && stop.phase === 'sent') {",
+      "replace": "if (off && this.memory.stops[target.circuit] === stop) {",
+      "from": "review r1",
+      "equivalent": true
+    },
+    {
+      "file": "src/model.js",
+      "find": "fahrenheit ? toCelsius(number) : Math.round(number * 10) / 10",
+      "replace": "Math.round(number * 10) / 10",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (answer && test.ok(answer) === true) {",
+      "replace": "if (true) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (!off) {\n      throw this.refusal(ERRORS.stopNotYet);\n    }\n  }",
+      "replace": "  }",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "return Math.max(session.lastAttemptAt + base, mono + this.pauseLeft(mono));",
+      "replace": "return mono + this.pauseLeft(mono);",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "this.memory.lastReadAt > 0 && since < this.interval",
+      "replace": "false",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (since < floor) {",
+      "replace": "    if (false) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/emsesp/errors.js",
+      "find": "err.status >= 400 && err.status <= 499 && err.status !== 429",
+      "replace": "err.status >= 400 && err.status <= 499",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (current && !this.memory.refused && session.online === true) {",
+      "replace": "if (current) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    const system = systemOf(answer);\n    if (!system) {",
+      "replace": "    const system = systemOf(answer) ?? { bus: 'unknown' };\n    if (!system) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (isDenied(err)) {\n        throw new EmsError(CODES.AUTH",
+      "replace": "      if (isMissing(err)) {\n        throw new EmsError(CODES.AUTH",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        if (system.key !== item.target.key) {",
+      "replace": "        if (false) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "!(known && known !== stop.key)",
+      "replace": "true",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "if (!this.config.allowCommands) {\n      throw this.refusal(ERRORS.disabled);\n    }\n    if (epoch",
+      "replace": "if (false) {\n      throw this.refusal(ERRORS.disabled);\n    }\n    if (epoch",
+      "from": "review r1"
+    },
+    {
+      "file": "src/emsesp/http.js",
+      "find": "          beforeSend();",
+      "replace": "          ;",
+      "from": "review r1"
+    },
+    {
+      "file": "src/emsesp/gate.js",
+      "find": "if (this.current && this.current.priority !== PRIORITY.STOP) {",
+      "replace": "if (this.current) {",
+      "from": "review r1"
+    },
+    {
+      "file": "src/emsesp/client.js",
+      "find": "return this.post(path, value, { ...options, priority: PRIORITY.STOP });",
+      "replace": "return this.post(path, value, { ...options, priority: PRIORITY.POLL });",
+      "from": "review r1"
+    },
+    {
+      "file": "src/config.js",
+      "find": "return Math.min(DHW.max, Math.max(DHW.ceilingMin, Math.floor(number)));",
+      "replace": "return Math.max(DHW.ceilingMin, Math.floor(number));",
+      "from": "review r1"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      this.armMemoryRetry();\n      return;",
+      "replace": "      return;",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        if (this.stopToResend(session, stop)) {\n          void this.resendStop(session, stop, '/data read');",
+      "replace": "        if (false) {\n          void this.resendStop(session, stop, '/data read');",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (!this.loading) {",
+      "replace": "      if (true) {",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (mode !== OFF && startedAt <= sentAt + TIMINGS.applyWindow) {",
+      "replace": "      if (false) {",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "        } else if (this.stepLeft(item.answerBy) && !this.closed) {",
+      "replace": "        } else if (false) {",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      if (!this.stepLeft(answerBy) || this.closed || session !== this.session) {\n        return false;",
+      "replace": "      if (true) {\n        return false;",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "      this.busyStreak += 1;",
+      "replace": "      ;",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "    if (this.closed || session !== this.session || follow.timer || follow.due.length === 0) {",
+      "replace": "    if (follow.timer || follow.due.length === 0) {",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/app.js",
+      "find": "value === OFF && target.kind === 'hc' ? ERRORS.noOffHere : ERRORS.badMode",
+      "replace": "ERRORS.badMode",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/constants.js",
+      "find": "  'kapali',",
+      "replace": "",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/devices.js",
+      "find": "word(modeName(value, circuit), language)",
+      "replace": "word(modeName(value), language)",
+      "from": "r1 fix"
+    },
+    {
+      "file": "src/constants.js",
+      "find": "  queue: 16,",
+      "replace": "  queue: 4,",
+      "from": "r1 fix"
     }
   ]
 }

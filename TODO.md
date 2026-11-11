@@ -17,7 +17,26 @@ to date at the end of every milestone.
       retried without end; /data bounded to 1.5 s; en/fr, docs, cover.
       Tested against a fake EMS-ESP (shapes of the 3.9 API) and servers on
       127.0.0.1, virtual and real clock (x20), Node 22 and 24.
-- [ ] **Review r1** (xhigh).
+- [x] **Review r1 fixes** (2026-11-11, review r1 of 8755495): B1 /data
+      read again every 10 s while unreadable (one read at a time), the stops
+      it keeps sent once it answers; I1 follow-up reads armed after a 200
+      only (or once after a click left without an answer), 4xx counted in
+      every phase, resends at the rhythm of the periodic reads, 429/5xx
+      pauses growing 1, 2, 5, 10 min across reads and stops, no follow-up
+      read during a pause, a refusal or the backoff; I2 writes read back
+      every 600 ms until 4.3 s (the fake applies after 1 s by default), a
+      stop judged contradicted only by a read begun 3 s after it left; I3
+      queue of 16, a scene of 5 setpoints at 200 ms set and confirmed; I4
+      the heating stop named "heating of the boiler, all circuits", its reach
+      and the frost protection said, the error of an RC310 circuit points to
+      it; I5 a test per surviving mutant of the review (`test/guards.test.js`);
+      I6 the fake fails a test beyond 60 requests per virtual second, the
+      clock rejects beyond 20 000 timers per advance, the logger is bounded;
+      M1 read only mode = taken, never applied; M2 nothing armed nor sent
+      after stop() (no save either); M3 `timeout-minutes` in CI; M4 Turkish
+      upper case; M5 "On" sent without an answer no longer brings the stop
+      back (refused or unsent: it does); M6 noted below.
+- [ ] **Review r2**.
 
 ## Decisions
 
@@ -81,8 +100,15 @@ to date at the end of every milestone.
   confirmed.
 - **Commands**: one option for switching on, modes and setpoints. Batches
   gathered for 50 ms share one fresh read (`/api/system`, then the entity of
-  each command); writes leave in order, then each entity is read back.
-  Sent by 3.5 s, confirmed by 4.3 s.
+  each command); writes leave in order, then each entity is read back every
+  600 ms until it shows (EMS-ESP applies a write 0.5-2 s after its 200).
+  Sent by 3.5 s, confirmed by 4.3 s; 16 waiting at most. "On" or a mode
+  sent without an answer (or a 5xx) replaces a stop of the circuit (it
+  left); refused (4xx, 429) or unsent, the stop holds and is sent again.
+- **Heating stop**: `heatingactivated` off is the summer mode of the boiler:
+  every circuit stops and the frost protection of the thermostat may not
+  heat; named so in the select and the docs. RC310/RC300 circuits list no
+  off mode: no circuit stop for them (coordinator's decision, r1).
 - **Bounds**: min/max of the entity (required), intersected with ours: room
   5-30 °C half degrees, hot water 20 °C to `max_dhw` (65 by default, 40-65,
   never above 65), checked again in `beforeSend`, final 65 °C guard. EMS-ESP
@@ -92,16 +118,21 @@ to date at the end of every milestone.
   store, app flow, test kit), its review r1 fixes included.
 - **Manifest**: `categories: ["climate"]`, `transports: ["local"]`; no
   `keywords` nor `countries` (would be DE, NL, UK, BE and the EU).
-- **Mutation checks**: `test/mutants.json`, run with `memcap npm run mutants`.
-  Two survivors marked `equivalent`, kept as second guards. `startedAt >
-stopSentAt` in `observe()`: a read begun before a stop left is already
-  dropped by the write counter (the stop counts as a write) before
-  `observe()` runs. The stop check in the `beforeSend` of a setpoint: A stop can only appear after the check
-  at the start of the batch through a click, which also moves the epoch
-  that `check()` refuses on; the guard stays for a future path that would
-  not.
+- **Mutation checks**: `test/mutants.json` (98: ours, the 30 of review r1
+  and those of its fixes), run with `memcap npm run mutants`. Three
+  survivors marked `equivalent`, kept as second guards: `startedAt >
+stopSentAt` in `observe()` (a read begun before a stop left is already
+  dropped by the write counter, the stop counting as a write); the stop
+  check in the `beforeSend` of a setpoint (a stop can only appear after the
+  check at the start of the batch through a click, which also moves the
+  epoch `check()` refuses on); `stop.phase === 'sent'` before confirming a
+  click (the only other phase it can have there is `confirmed`).
 
 ## To check on a real gateway
+
+- EMS-ESP 3.10 (dev) skips a write of the same value within 60 s and answers
+  200 (`write_protection`): the resends of a stop at 5 and 20 s may do
+  nothing there; the periodic resends (an interval of 60 s or more) do.
 
 - A POST on `/api/<device>/<tag>/<entity>` (`/api/boiler/dhw/activated`,
   `/api/thermostat/hc1/mode`): the docs show `/api/thermostat/hc2/seltemp`,

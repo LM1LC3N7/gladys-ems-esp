@@ -23,8 +23,9 @@ Un appareil Gladys par installation, lu toutes les 60 s par défaut :
 
 - températures extérieure et de départ, pression de l'installation (lues sur
   la chaudière) ;
-- **chauffage (chaudière)** : marche/arrêt du chauffage de la chaudière
-  (`heatingactivated`, le « mode été » de la chaudière) ;
+- **chauffage de la chaudière, tous les circuits** : marche/arrêt du
+  chauffage de la chaudière (`heatingactivated`, le « mode été » de la
+  chaudière : il coupe le chauffage de **tous** les circuits, voir L'arrêt) ;
 - pour chaque **circuit de chauffage** du thermostat (hc1 à hc4) :
   température ambiante, consigne ambiante, mode (manuel, automatique, jour,
   nuit, hors gel... selon le thermostat, avec « Arrêt » quand il en propose
@@ -94,12 +95,17 @@ Chaque commande relit d'abord EMS-ESP (son identité, puis l'entité qu'elle
 lecture, jamais sur les valeurs gardées en mémoire ; les commandes arrivées
 ensemble (une scène) partagent cette relecture, partent une à une, puis
 chacune est relue. Une commande part au plus tard 3,5 s après le clic, sinon
-elle est refusée sans rien envoyer. Elle n'est annoncée réussie que si une
-lecture faite après elle, avant 4,3 s, montre la valeur demandée ; sinon
-Gladys affiche « envoyée et acceptée, pas encore appliquée » (ou « envoyée,
-sans confirmation » si EMS-ESP n'a pas répondu), et les lectures de suivi,
-5 s et 20 s plus tard, publient la valeur dès qu'elle apparaît. Au-delà de 4
-commandes en attente, elles sont refusées. Un refus HTTP 4xx d'une commande
+elle est refusée sans rien envoyer. EMS-ESP répond dès que l'écriture est en
+file et ne montre la nouvelle valeur qu'après son passage sur le bus (0,5 à
+2 s) : l'entité est donc relue toutes les 600 ms, et la commande n'est
+annoncée réussie que si une de ces lectures, avant 4,3 s, montre la valeur
+demandée ; sinon Gladys affiche « envoyée et acceptée, pas encore appliquée »
+(ou « envoyée, sans confirmation » si EMS-ESP n'a pas répondu), et les
+lectures de suivi, 5 s et 20 s plus tard, publient la valeur dès qu'elle
+apparaît. Au-delà de 16 commandes en attente, elles sont refusées. EMS-ESP
+servant une requête à la fois, une scène de 5 consignes est réglée et
+confirmée jusqu'à environ 200 ms par requête ; sur une passerelle plus lente
+(500 ms et plus), les dernières sont refusées « rien envoyé » faute de temps. Un refus HTTP 4xx d'une commande
 ne concerne qu'elle : les lectures continuent. Un refus 401/403 veut dire que
 la clé n'a pas le droit d'écrire : l'erreur le dit.
 
@@ -120,9 +126,20 @@ ou pour un circuit de chauffage dont le thermostat propose un mode arrêt
 L'intégration écrit `off`, qu'EMS-ESP comprend dans toutes ses langues.
 
 **Un circuit dont le thermostat ne propose pas de mode arrêt** (RC310, RC300,
-RC35... : manuel et automatique, jour et nuit) ne peut pas être arrêté par son
-sélecteur de mode : arrêtez le chauffage de la chaudière (« Chauffage
-(chaudière) : marche/arrêt »), sans option lui aussi.
+RC35... : manuel et automatique, jour et nuit) n'offre pas d'arrêt : son
+sélecteur de mode n'a pas « Arrêt » (l'erreur le rappelle). Pour arrêter le
+chauffage, utilisez « Chauffage de la chaudière, tous les circuits :
+marche/arrêt », choix **« Arrêt du chauffage de la chaudière, tous les
+circuits »**, sans option lui aussi. Attention :
+
+- il coupe le chauffage de **tous** les circuits de la chaudière (le « mode
+  été » de la chaudière), pas d'un seul ;
+- tant qu'il tient, la protection hors gel pilotée par le thermostat peut ne
+  plus chauffer l'installation : ne l'utilisez pas pour une longue absence
+  par grand froid ;
+- il n'a pas été vérifié avec un RC310 maître du bus : si le thermostat
+  remet le chauffage en marche, deux lectures de suite le montrent et la garde
+  de l'arrêt depuis Gladys est levée (l'état « marche » s'affiche).
 
 L'arrêt part sans attendre une lecture, devant toute autre requête : une
 lecture en cours est interrompue, les commandes pas encore envoyées sont
@@ -140,16 +157,21 @@ Il est refusé par l'intégration dans ces trois cas seulement :
 - la dernière lecture a montré une **autre** installation à cette adresse.
 
 EMS-ESP lui-même le refuse sans une clé ayant le droit « Lecture et
-écriture » (HTTP 401/403 ; l'erreur le dit) ou en mode lecture seule (l'état
-de la liaison le signale).
+écriture » (HTTP 401/403 ; l'erreur le dit). En mode lecture seule, EMS-ESP
+l'accepte (HTTP 200) sans jamais l'appliquer : il reste « pas encore
+appliqué » (l'état de la liaison signale ce mode).
 
 Seule une réponse d'EMS-ESP compte comme un essai. Quand il ne peut pas
 partir (passerelle injoignable, coupure), il est retenté pendant 250 ms,
 puis gardé dans /data et renvoyé en tête de chaque lecture suivante, sans
 limite, jusqu'à ce qu'EMS-ESP y réponde : il part donc à la première lecture
 qui la joint, et dès le redémarrage de l'intégration ou un changement de
-configuration. Parti sans réponse (délai dépassé, coupure) ou refusé en HTTP
-429/5xx, il est renvoyé de même, sans être compté. Il n'est pas renvoyé à une
+configuration (ou, si /data était lent au démarrage, dès qu'il répond : il
+est relu toutes les 10 s). Parti sans réponse (délai dépassé, coupure) ou
+refusé en HTTP 429/5xx, il est renvoyé de même, sans être compté, au rythme
+des lectures périodiques (leur intervalle, leur repli après des échecs, la
+pause de 1, 2, 5 puis 10 min après des 429/5xx de suite) ; seul le clic
+déclenche une lecture de suivi rapide quand il part sans réponse. Il n'est pas renvoyé à une
 autre installation lue à l'adresse. Quand EMS-ESP le refuse en HTTP 4xx alors
 que les lectures passent, il est renvoyé 2 fois au plus, puis l'état le dit.
 Cliqué alors qu'EMS-ESP refuse les lectures avec la clé, il est envoyé une
@@ -189,7 +211,8 @@ le thermostat, la chaudière ou dans EMS-ESP).
   sur l'appareil créé ; elle apparaît comme un nouvel appareil dans
   Découverte.
 - **EMS-ESP en mode lecture seule** : l'état de la liaison le signale ;
-  EMS-ESP refuse alors toute commande, arrêts compris.
+  EMS-ESP accepte alors toute commande sans l'appliquer, arrêts compris
+  (« pas encore appliquée »).
 
 ## Ce qui est gardé dans /data
 
@@ -198,7 +221,9 @@ d'une empreinte salée, de quoi savoir si elle a changé, pas de quoi la
 retrouver), l'heure de la dernière lecture (un redémarrage ne relit pas plus
 tôt que l'intervalle), les arrêts envoyés depuis Gladys. Aucun secret. Une
 lecture ou une écriture de /data n'est pas attendue plus de 1,5 s : un volume
-bloqué compte comme illisible et ne retient pas un arrêt.
+bloqué compte comme illisible et ne retient pas un arrêt. Illisible, /data est
+relu toutes les 10 s (une lecture à la fois) ; dès qu'il répond, les arrêts
+qu'il garde partent et les commandes sont de nouveau acceptées.
 
 ## Limites connues
 
@@ -208,6 +233,11 @@ bloqué compte comme illisible et ne retient pas un arrêt.
   mode de chaque circuit de chauffage). EMS-ESP sert une requête à la fois :
   une autre application qui l'interroge en même temps peut provoquer un 429
   et une pause d'une minute.
+- Une scène de plus de quelques consignes sur une passerelle lente (voir Les
+  commandes).
+- « Marche » (ou un autre mode) parti sans réponse remplace l'arrêt depuis
+  Gladys : l'arrêt n'est plus renvoyé ; refusé ou jamais parti, l'arrêt tient
+  et ses renvois continuent.
 - Consignes non écrites quand EMS-ESP est réglé en °F.
 - Programmes horaires, mode de l'eau chaude du thermostat, charge unique,
   énergie, solaire, mélangeurs, pompe à chaleur en détail, capteurs ajoutés à

@@ -35,10 +35,13 @@ export const FEATURE_NAMES = {
   [F.STATUS]: both('Status', 'État de la liaison'),
 };
 
-/** "Heating (boiler)", "Heating circuit 1", "Hot water 1". */
+/** "Heating of the boiler, all circuits", "Heating circuit 1", "Hot water 1". */
 export function circuitName(circuit) {
   if (circuit === 'heating') {
-    return both('Heating (boiler)', 'Chauffage (chaudière)');
+    return both(
+      'Heating of the boiler, all circuits',
+      'Chauffage de la chaudière, tous les circuits',
+    );
   }
   const n = circuit.replace(/^\D+/, '');
   return circuit.startsWith('hc')
@@ -87,9 +90,19 @@ const MODE_NAMES = {
   'own prog': both('Own schedule', 'Programme personnel'),
 };
 
+/** "Off" of the heating of the boiler: every circuit stops. */
+const HEATING_OFF = both(
+  'Off: heating of the boiler, all circuits',
+  'Arrêt du chauffage de la chaudière, tous les circuits',
+);
+
 /** The label of a mode value (plain text, never empty). */
-export const modeName = (value) =>
-  Object.hasOwn(MODE_NAMES, value) ? MODE_NAMES[value] : both(value, value);
+export const modeName = (value, circuit) => {
+  if (circuit === 'heating' && value === 'off') {
+    return HEATING_OFF;
+  }
+  return Object.hasOwn(MODE_NAMES, value) ? MODE_NAMES[value] : both(value, value);
+};
 
 export const STATUS_TEXTS = {
   online: both('OK', 'OK'),
@@ -174,8 +187,8 @@ export const T = {
     'La réponse à cette adresse n’est pas celle d’EMS-ESP : valeurs non affichées',
   ),
   readonly: both(
-    'EMS-ESP is in read only mode: it refuses every command, stops included',
-    'EMS-ESP est en mode lecture seule : il refuse toute commande, arrêts compris',
+    'EMS-ESP is in read only mode: it takes every command (HTTP 200) and never applies it, stops included; they show as not applied',
+    'EMS-ESP est en mode lecture seule : il accepte toute commande (HTTP 200) sans jamais l’appliquer, arrêts compris ; elles restent non appliquées',
   ),
   fahrenheit: both(
     'EMS-ESP is set to °F: temperatures converted to °C, setpoints refused',
@@ -192,8 +205,8 @@ export const T = {
     return both(`${bare(text.en)}. ${bare(note.en)}.`, `${bare(text.fr)}. ${bare(note.fr)}.`);
   },
   unreadable: both(
-    '/data unreadable: nothing is saved, modes and setpoints are refused (stops still leave).',
-    '/data illisible : rien n’est enregistré, modes et consignes sont refusés (les arrêts partent toujours).',
+    '/data unreadable: read again every 10 s; meanwhile nothing is saved, switching on, modes and setpoints are refused (a stop clicked still leaves).',
+    '/data illisible : relu toutes les 10 s ; en attendant rien n’est enregistré, remise en marche, modes et consignes sont refusés (un arrêt cliqué part quand même).',
   ),
   test: {
     next: (wait) =>
@@ -237,6 +250,10 @@ export const ERRORS = {
   badMode: both(
     'This mode is not one this circuit lists.',
     'Ce mode n’est pas un de ceux que liste ce circuit.',
+  ),
+  noOffHere: both(
+    'This heating circuit lists no "Off" mode (its thermostat has none): to stop the heating, use "Heating of the boiler, all circuits" (it stops every circuit). Nothing sent.',
+    'Ce circuit de chauffage ne propose pas de mode « Arrêt » (son thermostat n’en a pas) : pour arrêter le chauffage, utilisez « Chauffage de la chaudière, tous les circuits » (il arrête tous les circuits). Rien envoyé.',
   ),
   badNumber: both('Not a number.', 'Ce n’est pas un nombre.'),
   badWhole: both('Whole degrees only.', 'Degrés entiers seulement.'),

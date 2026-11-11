@@ -211,7 +211,7 @@ export function reportedRoles(values) {
  * (the core's rules: a non-empty string without spaces around, unique
  * labels and values, no other key than value, label, sort_order).
  */
-export function modeOptions(allowed, language) {
+export function modeOptions(allowed, language, circuit) {
   const values = [];
   for (const value of allowed) {
     if (typeof value === 'string' && MODE_VALUE.test(value) && !values.includes(value)) {
@@ -220,7 +220,7 @@ export function modeOptions(allowed, language) {
   }
   const labels = new Set();
   return values.slice(0, LIMITS.modes).map((value, i) => {
-    let label = word(modeName(value), language).trim() || value;
+    let label = word(modeName(value, circuit), language).trim() || value;
     if (labels.has(label)) {
       label = `${label} (${value})`;
     }
@@ -281,7 +281,7 @@ export function buildDevice(gladys, key, { roles, values, firmware, language, cr
         if (allowed.length === 0) {
           continue;
         }
-        feature.supported_options = modeOptions(allowed, language);
+        feature.supported_options = modeOptions(allowed, language, r.circuit);
       }
     }
     features.push(feature);

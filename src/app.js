@@ -157,7 +157,14 @@ export class EmsApp {
     this.memoryLoaded = false;
     /** /data exists but cannot be read (or is stuck): never written over, modes refused. */
     this.memoryBroken = false;
+    /** The read of /data under way (one at a time), its retry timer. */
+    this.loading = undefined;
+    this.memoryTimer = undefined;
+    /** stop() was called: no timer armed, no request sent any more. */
+    this.closed = false;
     this.saveWarned = false;
+    /** 429/5xx answers in a row (reads and stops): the pause grows with them. */
+    this.busyStreak = 0;
     /** The end of a 429/5xx pause, on the monotonic clock (0: none). */
     this.pauseUntil = 0;
     /** key -> the roles seen during this run (a feature never disappears). */
@@ -201,23 +208,43 @@ export class EmsApp {
     });
   }
 
+  /**
+   * Reads /data (one read at a time: a read still under way is waited for
+   * again, never doubled), bounded to 1.5 s. Unreadable or stuck: read again
+   * every 10 s until it answers (see retryMemory).
+   */
   async loadMemory() {
     if (this.memoryLoaded && !this.memoryBroken) {
       return;
     }
     let raw = null;
     try {
-      raw = await this.bounded(Promise.resolve().then(() => this.store.load()));
+      if (!this.loading) {
+        const load = Promise.resolve().then(() => this.store.load());
+        this.loading = load;
+        load
+          .then(
+            () => {},
+            () => {},
+          )
+          .then(() => {
+            if (this.loading === load) {
+              this.loading = undefined;
+            }
+          });
+      }
+      raw = await this.bounded(this.loading);
       this.memoryBroken = false;
     } catch {
       // Unreadable (or stuck) is not empty: nothing is written over it.
-      this.memoryBroken = true;
-      if (!this.memoryLoaded) {
-        this.logger.warn('/data/ems-esp-state.json cannot be read: nothing will be saved');
+      if (!this.memoryBroken) {
+        this.logger.warn('/data/ems-esp-state.json cannot be read: read again every 10 s');
       }
+      this.memoryBroken = true;
     }
     if (this.memoryBroken) {
       this.memoryLoaded = true;
+      this.armMemoryRetry();
       return;
     }
     const now = this.now();
@@ -229,13 +256,54 @@ export class EmsApp {
     }
     this.memoryLoaded = true;
     const mono = this.monotonic();
-    this.pauseUntil =
+    this.pauseUntil = Math.max(
+      this.pauseUntil,
       this.memory.pausedUntil > now
         ? mono + Math.min(TIMINGS.pauseMax, this.memory.pausedUntil - now)
-        : 0;
+        : 0,
+    );
     if (live.length > 0) {
       void this.saveMemory();
     }
+  }
+
+  /** /data unreadable: read again on its own timer (one at a time) until it answers. */
+  armMemoryRetry() {
+    if (this.closed || this.memoryTimer) {
+      return;
+    }
+    this.memoryTimer = this.timers.setTimeout(() => {
+      this.memoryTimer = undefined;
+      void this.retryMemory();
+    }, TIMINGS.dataRetry);
+  }
+
+  /**
+   * /data read again: once it answers, the stops it keeps that EMS-ESP never
+   * answered leave at once, the refusal and the pause it keeps apply.
+   */
+  async retryMemory() {
+    if (this.closed || !this.memoryBroken) {
+      return;
+    }
+    await this.loadMemory();
+    if (this.closed || this.memoryBroken) {
+      return;
+    }
+    this.logger.info('/data read again');
+    await this.checkRefusal();
+    const session = this.session;
+    if (session) {
+      for (const stop of Object.values(this.memory.stops)) {
+        if (this.stopToResend(session, stop)) {
+          void this.resendStop(session, stop, '/data read');
+        }
+      }
+      if (!session.running) {
+        this.schedule();
+      }
+    }
+    await this.publishAll();
   }
 
   /** The state as /data keeps it (the pause back on the wall clock). */
@@ -246,9 +314,10 @@ export class EmsApp {
     return serializeMemory(this.memory);
   }
 
-  /** Saves, never throws, never waits more than 1.5 s; never over an unread or unreadable file. */
-  saveMemory() {
-    if (this.memoryBroken || !this.memoryLoaded) {
+  /** Saves, never throws, never waits more than 1.5 s; never over an unread or unreadable file; never after stop(). */
+  saveMemory(final = false) {
+    // After stop(), only its own last save (nothing armed afterwards).
+    if (this.memoryBroken || !this.memoryLoaded || (this.closed && !final)) {
       return Promise.resolve(false);
     }
     let data;
@@ -351,9 +420,12 @@ export class EmsApp {
           await this.setStatus(false, T.configWait(age(wait)));
         }
       }
+      if (this.closed) {
+        return;
+      }
       retry.timer = this.timers.setTimeout(() => {
         retry.timer = undefined;
-        if (generation === retry.generation) {
+        if (generation === retry.generation && !this.closed) {
           void this.connected(getConfig);
         }
       }, wait);
@@ -478,8 +550,13 @@ export class EmsApp {
     this.publisher.stop();
   }
 
-  /** Clean shutdown: timers cleared, /data written. */
+  /** Clean shutdown: timers cleared, /data written; nothing armed nor sent afterwards. */
   async stop() {
+    this.closed = true;
+    if (this.memoryTimer) {
+      this.timers.clearTimeout(this.memoryTimer);
+      this.memoryTimer = undefined;
+    }
     this.stopSession();
     const retry = this.configRetry;
     retry.generation += 1;
@@ -487,7 +564,7 @@ export class EmsApp {
       this.timers.clearTimeout(retry.timer);
       retry.timer = undefined;
     }
-    await this.saveMemory();
+    await this.saveMemory(true);
   }
 
   /** For the tests: everything under way has ended. */
@@ -569,7 +646,7 @@ export class EmsApp {
   /** The next read; never while refused (only the user tries again). */
   schedule() {
     const session = this.session;
-    if (!session) {
+    if (!session || this.closed) {
       return;
     }
     if (session.timer) {
@@ -787,6 +864,7 @@ export class EmsApp {
     }
     session.online = true;
     session.failures = 0;
+    this.busyStreak = 0;
     session.wait = undefined;
     session.error = undefined;
     if (this.memory.refused) {
@@ -845,8 +923,10 @@ export class EmsApp {
       return { kind: 'auth', wait: undefined };
     }
     if (isBusy(err)) {
-      const step =
-        TIMINGS.backoff[Math.min(this.session?.failures ?? 0, TIMINGS.backoff.length - 1)];
+      // 1, 2, 5, then 10 min for 429/5xx in a row, a read's or a stop's.
+      const streak = Math.max(this.session?.failures ?? 0, this.busyStreak);
+      this.busyStreak += 1;
+      const step = TIMINGS.backoff[Math.min(streak, TIMINGS.backoff.length - 1)];
       const wait = Math.min(TIMINGS.pauseMax, Math.max(TIMINGS.pauseMin, this.interval, step));
       const mono = this.monotonic();
       this.pauseUntil = Math.max(this.pauseUntil, mono + wait);
@@ -1240,7 +1320,9 @@ export class EmsApp {
     let wanted;
     if (target.suffix === R.MODE) {
       if (typeof value !== 'string' || !this.listedModes(target.key, target.circuit).has(value)) {
-        throw this.refusal(ERRORS.badMode);
+        throw this.refusal(
+          value === OFF && target.kind === 'hc' ? ERRORS.noOffHere : ERRORS.badMode,
+        );
       }
       if (value === OFF) {
         return this.protect(target, received);
@@ -1429,9 +1511,7 @@ export class EmsApp {
       }
     }
     // Every write leaves first, then each is confirmed by reading its entity again.
-    for (const { item, test } of written) {
-      await this.confirm(item, test);
-    }
+    await this.confirmAll(written);
   }
 
   /**
@@ -1483,9 +1563,15 @@ export class EmsApp {
       if (err.sent) {
         this.followUp(ctx.session);
       }
-      // Not answered 200 (not sent, refused, 429, silence, 5xx): in doubt the
-      // stop holds again, and its resends go on.
-      this.restoreStop(held);
+      // Not sent, or answered with a refusal (4xx, 429): the switching on did
+      // not leave, the stop holds again and its resends go on. Sent without
+      // an answer, or a 5xx: it left, a newer command of this circuit, so the
+      // resends of the old stop are not brought back (the follow-up reads
+      // show what applies; a new "Off" is a click away).
+      const refused = err.code === CODES.HTTP && err.status >= 400 && err.status <= 499;
+      if (!err.sent || refused) {
+        this.restoreStop(held);
+      }
       void this.saveMemory();
       throw this.writeRefusal(err);
     }
@@ -1588,13 +1674,55 @@ export class EmsApp {
     return this.refusal(ERRORS.sentUnconfirmed(reason));
   }
 
-  /** The read that confirms a write, within its ack budget. */
-  async confirm(item, test) {
-    const answer = await this.readAfter(item.ctx.session, test.path, item.answerBy);
-    if (answer && test.ok(answer) === true) {
-      item.resolve();
-    } else {
-      item.reject(this.refusal(ERRORS.notYetApplied));
+  /** Waits `ms` on the clock of the app. */
+  sleep(ms) {
+    return new Promise((resolve) => this.timers.setTimeout(resolve, ms));
+  }
+
+  /** Whether another read can still end before `answerBy` after a wait of one step. */
+  stepLeft(answerBy) {
+    return answerBy - this.monotonic() - TIMINGS.confirmStep > TIMINGS.confirmMin;
+  }
+
+  /**
+   * The reads that confirm the writes of a batch: EMS-ESP answers a write once
+   * queued and shows the value after its round trip on the bus (0.5 to 2 s),
+   * so each entity is read again every 600 ms until it shows the value asked
+   * or its ack budget ends ("not applied yet" then).
+   */
+  async confirmAll(written) {
+    let pending = written;
+    while (pending.length > 0) {
+      const next = [];
+      for (const entry of pending) {
+        const { item, test } = entry;
+        const answer = await this.readAfter(item.ctx.session, test.path, item.answerBy);
+        if (answer && test.ok(answer) === true) {
+          item.resolve();
+        } else if (this.stepLeft(item.answerBy) && !this.closed) {
+          next.push(entry);
+        } else {
+          item.reject(this.refusal(ERRORS.notYetApplied));
+        }
+      }
+      pending = next;
+      if (pending.length > 0) {
+        await this.sleep(TIMINGS.confirmStep);
+      }
+    }
+  }
+
+  /** One entity read again every 600 ms until `ok` or the deadline: true when shown. */
+  async readUntil(session, path, answerBy, ok) {
+    for (;;) {
+      const answer = await this.readAfter(session, path, answerBy);
+      if (answer && ok(answer) === true) {
+        return true;
+      }
+      if (!this.stepLeft(answerBy) || this.closed || session !== this.session) {
+        return false;
+      }
+      await this.sleep(TIMINGS.confirmStep);
     }
   }
 
@@ -1652,18 +1780,26 @@ export class EmsApp {
     const outcome = await this.sendStop(session, stop, {
       sendBy: received + TIMINGS.commandSendBy,
       answerBy,
+      click: true,
     });
     // The status and the states say it (never waited for: the ack first).
     void this.publishAll();
     if (!outcome.ok) {
       throw this.refusal(outcome.error);
     }
-    const after = modeOf(await this.readAfter(session, modePath(target.circuit), answerBy))?.value;
-    const off = after === OFF;
+    // EMS-ESP answers once the write is queued; the value shows after its
+    // round trip on the bus: read again until the deadline.
+    const off = await this.readUntil(
+      session,
+      modePath(target.circuit),
+      answerBy,
+      (answer) => modeOf(answer)?.value === OFF,
+    );
     if (off && this.memory.stops[target.circuit] === stop && stop.phase === 'sent') {
       // A read that left after the stop shows it applied: no resend from now on.
       stop.phase = 'confirmed';
       void this.saveMemory();
+      void this.publishAll();
     }
     if (!off) {
       throw this.refusal(ERRORS.stopNotYet);
@@ -1696,7 +1832,7 @@ export class EmsApp {
     }
   }
 
-  async sendStopOnce(session, stop, { sendBy, answerBy, resend = false }) {
+  async sendStopOnce(session, stop, { sendBy, answerBy, resend = false, click = false }) {
     const path = modePath(stop.circuit);
     const retryEnd = this.monotonic() + TIMINGS.stopRetryBudget;
     // Sent while the reads are refused: EMS-ESP may refuse it too.
@@ -1729,9 +1865,12 @@ export class EmsApp {
     }
     // Only the stop still kept for this circuit is updated (a newer one or a mode replaced it).
     const current = this.memory.stops[stop.circuit] === stop ? stop : undefined;
-    // The next check is armed before any save (a stop that never left is
-    // sent again by the next periodic read instead).
-    if (!err || err.sent) {
+    // The follow-up reads are armed before any save, after a 200 only, or
+    // once after a click that left without an answer. A resend refused or
+    // never answered leaves again at the rhythm of the periodic reads (their
+    // interval, their backoff, the pause), never in a loop of follow-ups.
+    const silent = Boolean(err?.sent) && !(err.code === CODES.HTTP);
+    if (!err || (click && silent)) {
       this.followUp(session);
     }
     if (blind && err) {
@@ -1814,11 +1953,17 @@ export class EmsApp {
   observe(session, startedAt) {
     const { key, values } = session.data;
     for (const stop of Object.values(this.memory.stops)) {
-      if (stop.key !== key || startedAt <= (this.stopSentAt.get(stop.circuit) ?? -Infinity)) {
+      const sentAt = this.stopSentAt.get(stop.circuit) ?? -Infinity;
+      if (stop.key !== key || startedAt <= sentAt) {
         continue;
       }
       const mode = values.circuits.get(stop.circuit)?.mode?.value;
       if (mode === undefined) {
+        continue;
+      }
+      // Another state read before EMS-ESP could apply the stop (its round
+      // trip on the bus) says nothing yet: neither a resend nor a count.
+      if (mode !== OFF && startedAt <= sentAt + TIMINGS.applyWindow) {
         continue;
       }
       if (mode === OFF) {
@@ -1837,6 +1982,7 @@ export class EmsApp {
       } else if (
         stop.phase === 'sent' &&
         stop.resends < TIMINGS.stopResends &&
+        stop.tries < TIMINGS.stopResends &&
         !this.stopping.get(stop.circuit)
       ) {
         this.logger.warn(
@@ -1866,7 +2012,7 @@ export class EmsApp {
 
   armFollow(session) {
     const { follow } = session;
-    if (follow.timer || follow.due.length === 0) {
+    if (this.closed || session !== this.session || follow.timer || follow.due.length === 0) {
       return;
     }
     const generation = this.generation;
@@ -1895,14 +2041,24 @@ export class EmsApp {
     }
     const generation = this.generation;
     session.following = (async () => {
-      // Stops never answered go first, as at every read (never blind: a
-      // refused key waits for other credentials or the button).
+      // Never during a pause, a refusal or the backoff of failed reads: the
+      // periodic reads (and a click) take over then.
+      if (
+        this.closed ||
+        generation !== this.generation ||
+        this.memory.refused ||
+        this.pauseLeft() > 0 ||
+        session.online === false
+      ) {
+        return;
+      }
+      // Stops never answered go first, as at every read.
       for (const stop of Object.values(this.memory.stops)) {
-        if (!this.memory.refused && this.stopToResend(session, stop)) {
+        if (this.stopToResend(session, stop)) {
           await this.resendStop(session, stop, 'follow-up');
         }
       }
-      if (generation !== this.generation || this.memory.refused || this.pauseLeft() > 0) {
+      if (generation !== this.generation || this.pauseLeft() > 0) {
         return;
       }
       try {

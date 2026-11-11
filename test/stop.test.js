@@ -35,9 +35,11 @@ test('Off with the option off: sent at once, success once read off, kept in /dat
   assert.deepEqual(ack, { success: true });
   assert.ok(t.clock.monotonic() - at < 4_300, 'acked within the budget');
   assert.equal(stops(t), 1);
-  // Only the stop and the read that confirms it: nothing read before.
-  const tail = t.dev.requests.slice(-2).map((r) => `${r.method} ${r.path}`);
-  assert.deepEqual(tail, [`POST ${DHW_MODE}`, `GET ${DHW_MODE}`]);
+  // Only the stop, then the reads that confirm it: nothing read before it.
+  const sent = t.dev.requests.findIndex(isStop);
+  const tail = t.dev.requests.slice(sent).map((r) => `${r.method} ${r.path}`);
+  assert.equal(tail[0], `POST ${DHW_MODE}`);
+  assert.ok(tail.length >= 2 && tail.slice(1).every((r) => r === `GET ${DHW_MODE}`), tail.join());
   assert.deepEqual(kept(store), {
     key: KEY,
     circuit: 'dhw1',
@@ -137,12 +139,12 @@ test('Off goes ahead of a full queue; the commands waiting are never sent after 
   // Setpoints of the heating circuit: not held by the stop of the hot water,
   // only by the epoch (nothing begun before a stop leaves after it).
   const sp = (v) => t.gladys.fake.setValue(device, { external_id: F('hc1-setpoint') }, v);
-  const waiting = [sp(20), sp(20.5), sp(21.5), sp(22)];
-  const full = await t.during(sp(22.5), 100);
+  const waiting = Array.from({ length: 16 }, (_, i) => sp(15 + i / 2));
+  const full = await t.during(sp(25), 100);
   assert.match(full.value.error, /Trop de commandes en attente/);
   await t.wait(100);
   const stop = off(t);
-  const results = await t.during(Promise.all([stop, ...waiting]), 10 * SECOND);
+  const results = await t.during(Promise.all([stop, ...waiting]), 20 * SECOND);
   const [stopAck, ...others] = results.value;
   assert.equal(stopAck.success, true);
   for (const ack of others) {
@@ -424,11 +426,14 @@ test('Off refused only without a usable configuration, another installation, or 
   await u.wait(61 * SECOND);
   assert.match((await off(u)).error, /Une autre installation/);
   assert.equal(stops(u), 0);
-  // hc2 (an RC310) lists no off mode: nothing to send.
+  // hc2 (an RC310) lists no off mode: nothing to send, the error names the boiler select.
   const v = await setup();
   await v.connect();
   await v.create();
-  assert.match((await v.command('hc2-mode', 'off')).error, /n’est pas un de ceux/);
+  assert.match(
+    (await v.command('hc2-mode', 'off')).error,
+    /Chauffage de la chaudière, tous les circuits/,
+  );
   assert.equal(v.dev.posts().length, 0);
 });
 
@@ -721,7 +726,7 @@ test('a stop sent without an answer: a quick read checks it (follow-up), and sen
   assert.equal(t.dev.entities[DHW_MODE].value, false);
 });
 
-test('a stop answered 503: the follow-up read sends it again first, before the interval', async () => {
+test('a stop answered 503: no follow-up loop; sent again first by the read after the pause', async () => {
   const store = memoryStore();
   const t = await setup({ store });
   await t.connect();
@@ -730,7 +735,9 @@ test('a stop answered 503: the follow-up read sends it again first, before the i
   await off(t);
   t.dev.route = undefined;
   await t.wait(25 * SECOND);
-  assert.equal(stops(t), 2, 'sent again by a follow-up read');
+  assert.equal(stops(t), 1, 'no follow-up read sends it during the pause');
+  await t.wait(2 * MINUTE);
+  assert.equal(stops(t), 2, 'sent again by the read after the pause');
   assert.equal(t.dev.entities[DHW_MODE].value, false);
 });
 
@@ -740,6 +747,8 @@ test('/data stuck: a stop is acked at once, never waiting for the save', async (
   await t.connect();
   await t.create();
   store.frozen = true;
+  // Applied at once: the ack comes with the first read back, never after the save.
+  t.dev.applyDelay = 0;
   const at = t.clock.monotonic();
   assert.deepEqual(await off(t), { success: true });
   assert.ok(t.clock.monotonic() - at < 200, `${Math.round(t.clock.monotonic() - at)} ms`);

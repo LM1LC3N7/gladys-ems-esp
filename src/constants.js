@@ -110,10 +110,24 @@ export const OFF_WORDS = new Set([
   'wyłączono',
   'wył.',
   'kapalı',
+  // "KAPALI" lower cased without a locale.
+  'kapali',
   'vyp',
   'ki',
 ]);
-export const ON_WORDS = new Set(['on', 'an', 'aan', 'på', 'włączono', 'wł.', 'açık', 'zap', 'be']);
+export const ON_WORDS = new Set([
+  'on',
+  'an',
+  'aan',
+  'på',
+  'włączono',
+  'wł.',
+  'açık',
+  // "AÇIK" lower cased without a locale.
+  'açik',
+  'zap',
+  'be',
+]);
 
 /** The value of the "off" mode of every select: the protective stop of that circuit. */
 export const OFF = 'off';
@@ -183,8 +197,8 @@ export const LIMITS = {
   modes: 12,
   /** Names (model, version, mode labels) are cut to this length. */
   nameLength: 60,
-  /** Non-protective commands waiting for their turn: more are refused. */
-  queue: 4,
+  /** Non-protective commands waiting for their turn (at least the commandable features): more are refused. */
+  queue: 16,
   /** The API key: printable ASCII, no space. */
   tokenMin: 8,
   tokenMax: 1024,
@@ -213,6 +227,8 @@ export const TIMINGS = {
   configRetry: [5 * SECOND, 10 * SECOND, 30 * SECOND, MINUTE],
   /** /data: a read or a write never waited for longer (a stuck volume). */
   dataTimeout: 1_500,
+  /** /data unreadable or stuck: read again this often, until it answers. */
+  dataRetry: 10 * SECOND,
   /**
    * Commands (Gladys waits 5 s for the ack, its timer armed when it sends):
    * the request must leave by 3.5 s after the click, or the command is
@@ -230,6 +246,12 @@ export const TIMINGS = {
   stopRetryStep: 50,
   /** A stop refused by the gateway (4xx) or contradicted by a read is sent again 3 times at most. */
   stopResends: 3,
+  /** A stop is judged contradicted only by a read begun this long after it left. */
+  applyWindow: 3 * SECOND,
+  /** A write read back every 600 ms until it shows (EMS-ESP applies it in 0.5-2 s). */
+  confirmStep: 600,
+  /** A read back is not tried with less time than this left. */
+  confirmMin: 100,
   /** Reads after a command, spaced: its effect, then a check. */
   followUps: [5 * SECOND, 20 * SECOND],
 };

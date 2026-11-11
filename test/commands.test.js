@@ -62,8 +62,11 @@ test('read-only features and unknown modes refuse any command', async () => {
     const ack = await t.command('dhw1-mode', value);
     assert.match(ack.error, /n’est pas un de ceux que liste ce circuit/, String(value));
   }
-  // hc2 (an RC310) lists no "off".
-  assert.match((await t.command('hc2-mode', 'off')).error, /n’est pas un de ceux/);
+  // hc2 (an RC310) lists no "off": the error points to the heating of the boiler.
+  assert.match(
+    (await t.command('hc2-mode', 'off')).error,
+    /ne propose pas de mode « Arrêt ».*« Chauffage de la chaudière, tous les circuits »/,
+  );
   assert.equal(posts(t).length, 0);
 });
 
@@ -74,10 +77,10 @@ test('a mode with the option: a fresh read, the mode written as EMS-ESP lists it
   const before = t.dev.requests.length;
   const ack = await t.command('hc1-mode', 'manual');
   assert.deepEqual(ack, { success: true });
-  assert.deepEqual(
-    t.dev.requests.slice(before).map((r) => `${r.method} ${r.path}`),
-    ['GET /api/system', `GET ${HC_MODE}`, `POST ${HC_MODE}`, `GET ${HC_MODE}`],
-  );
+  const sequence = t.dev.requests.slice(before).map((r) => `${r.method} ${r.path}`);
+  assert.deepEqual(sequence.slice(0, 3), ['GET /api/system', `GET ${HC_MODE}`, `POST ${HC_MODE}`]);
+  // Then read back until it shows (EMS-ESP applies it after ~1 s here), nothing else.
+  assert.ok(sequence.length >= 4 && sequence.slice(3).every((r) => r === `GET ${HC_MODE}`));
   assert.equal(posts(t)[0].value, 'manual');
   await t.wait(6 * SECOND);
   assert.equal(last(t.gladys, 'hc1-mode'), 'manual');
@@ -220,14 +223,27 @@ test('the same value: nothing sent', async () => {
   assert.equal(posts(t).length, 0);
 });
 
-test('applied late: "not applied yet", then the follow-up reads publish it', async () => {
+test('applied 1.5 s after the 200 (the bus round trip): read again until it shows, success', async () => {
   const t = await setup({ config: ALLOW });
   await t.connect();
   await t.create();
-  t.dev.applyDelay = 3 * SECOND;
+  t.dev.applyDelay = 1_500;
+  t.dev.latency = 60;
+  assert.deepEqual(await t.command('dhw1-setpoint', 50), { success: true });
+  assert.deepEqual(await t.command('hc1-mode', 'manual'), { success: true });
+  assert.deepEqual(await t.command('heating-mode', 'off'), { success: true });
+});
+
+test('applied 5 s after the 200: "not applied yet", then the follow-up reads publish it', async () => {
+  const t = await setup({ config: ALLOW });
+  await t.connect();
+  await t.create();
+  t.dev.applyDelay = 5 * SECOND;
+  const at = t.clock.monotonic();
   const ack = await t.command('dhw1-setpoint', 50);
+  assert.ok(t.clock.monotonic() - at < 4_400, 'acked within 4.3 s');
   assert.match(ack.error, /Envoyée et acceptée, pas encore appliquée/);
-  await t.wait(6 * SECOND);
+  await t.wait(25 * SECOND);
   assert.equal(last(t.gladys, 'dhw1-setpoint'), 50);
 });
 
@@ -426,15 +442,53 @@ test('/data unreadable: modes and setpoints refused, nothing written', async () 
   assert.equal(posts(t).length, 0);
 });
 
-test('more than 4 commands waiting: refused at once', async () => {
+test('more than 16 commands waiting: refused at once', async () => {
   const t = await setup({ config: ALLOW, latency: 400 });
   await t.connect();
   const device = { external_id: DEVICE };
   const send = (v) => t.gladys.fake.setValue(device, { external_id: F('dhw1-setpoint') }, v);
-  const waiting = [send(50), send(51), send(52), send(53)];
-  const full = await t.during(send(54), 100);
+  const waiting = Array.from({ length: 16 }, (_, i) => send(40 + i));
+  const full = await t.during(send(60), 100);
   assert.match(full.value.error, /Trop de commandes en attente/);
-  await t.during(Promise.all(waiting), 10 * SECOND);
+  await t.during(Promise.all(waiting), 20 * SECOND);
+});
+
+test('a scene of five setpoints (200 ms per request): all five set and confirmed', async () => {
+  const t = await setup({ config: ALLOW });
+  for (const hc of ['hc3', 'hc4']) {
+    t.dev.entities[`/api/thermostat/${hc}/currtemp`] = { type: 'number', value: 20, uom: '°C' };
+    t.dev.entities[`/api/thermostat/${hc}/seltemp`] = {
+      type: 'number',
+      value: 20,
+      uom: '°C',
+      writeable: true,
+      min: 0,
+      max: 30,
+    };
+  }
+  await t.connect();
+  await t.create();
+  t.dev.latency = 200;
+  t.dev.applyDelay = 300;
+  const device = { external_id: DEVICE };
+  const send = (role, value) => t.gladys.fake.setValue(device, { external_id: F(role) }, value);
+  const outcome = await t.during(
+    Promise.all([
+      send('hc1-setpoint', 22),
+      send('hc2-setpoint', 22),
+      send('hc3-setpoint', 22),
+      send('hc4-setpoint', 22),
+      send('dhw1-setpoint', 50),
+    ]),
+    6 * SECOND,
+    10,
+  );
+  assert.deepEqual(outcome.value, Array(5).fill({ success: true }));
+  for (const hc of ['hc1', 'hc2', 'hc3', 'hc4']) {
+    assert.equal(t.dev.entities[`/api/thermostat/${hc}/seltemp`].value, 22, hc);
+  }
+  assert.equal(t.dev.entities[DHW_SET].value, 50);
+  assert.equal(t.dev.peak, 1);
 });
 
 test('a read begun before a write is never applied after it', async () => {
@@ -477,7 +531,9 @@ test('the option off: every command of a burst refused as such, none queued', as
   await t.create();
   const device = { external_id: DEVICE };
   const send = (v) => t.gladys.fake.setValue(device, { external_id: F('dhw1-setpoint') }, v);
-  const acks = await t.during(Promise.all([50, 51, 52, 53, 54, 55].map(send)), 6 * SECOND);
+  // More than the queue holds: each refused for the option, none for a full queue.
+  const values = Array.from({ length: 20 }, (_, i) => 40 + i);
+  const acks = await t.during(Promise.all(values.map(send)), 6 * SECOND);
   for (const ack of acks.value) {
     assert.match(ack.error, /Les commandes sont désactivées/);
   }

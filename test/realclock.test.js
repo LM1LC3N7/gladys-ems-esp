@@ -23,6 +23,8 @@ const quiet = { debug() {}, info() {}, warn() {}, error() {} };
 
 async function boot(t, { stuck } = {}) {
   const dev = fakeEmsEsp({ timers: globalThis });
+  // Real milliseconds: 50 ms here is 1 s of the app's clock (x20).
+  dev.applyDelay = 50;
   const routes = {};
   const answer = (path, method) => (request) => {
     if (method === 'GET' && stuck?.(path)) {
