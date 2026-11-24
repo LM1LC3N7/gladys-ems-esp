@@ -70,7 +70,7 @@ test('a GET with our User-Agent, JSON accepted, no keep-alive, no key unless giv
   const [request] = srv.requests;
   assert.match(
     request.headers['user-agent'],
-    /^gladys-ems-esp\/0\.1\.0 \(\+https:\/\/github\.com\/LM1LC3N7\/gladys-ems-esp\)$/,
+    /^gladys-ems-esp\/\d+\.\d+\.\d+ \(\+https:\/\/github\.com\/LM1LC3N7\/gladys-ems-esp\)$/,
   );
   assert.equal(request.headers.accept, 'application/json');
   assert.equal(request.headers.connection, 'close');

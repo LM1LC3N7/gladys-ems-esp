@@ -31,7 +31,7 @@ function* texts(node, path = '') {
 
 const fields = Object.fromEntries(manifest.config_schema.map((f) => [f.key, f]));
 
-test('the store basics; the version agrees everywhere (0.1.0 at the start)', () => {
+test('the store basics; the version agrees everywhere', () => {
   assert.equal(manifest.manifest_version, 1);
   assert.equal(manifest.type, 'device');
   assert.match(manifest.gladys_version, /^>=5\.1\.0$/);
